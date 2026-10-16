@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>TOEIC Reading App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- ========================================== -->
+    <!-- MÀN HÌNH 1: TRANG CHỦ (HOME SCREEN)        -->
+    <!-- ========================================== -->
+    <div id="homeScreen">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h1 style="margin: 0; color: #2e344e;">🏠 Thư viện của bạn</h1>
+            <div id="headerActions">
+                <button id="btnCreateSet" onclick="createNewSet()" style="background-color: #2196F3; color: white; padding: 10px 15px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">+ Tạo học phần</button>
+                <button id="btnCreateFolder" onclick="createNewFolder()" style="display: none; background-color: transparent; border: 1px solid #2e344e; color: #2e344e; padding: 10px 15px; border-radius: 4px; font-weight: bold; cursor: pointer;">+ Thư mục mới</button>
+            </div>
+        </div>
+
+        <div class="home-nav-tabs">
+            <button id="tabSets" class="home-tab active" onclick="switchHomeTab('sets')">Học phần</button>
+            <button id="tabFolders" class="home-tab" onclick="switchHomeTab('folders')">Thư mục</button>
+        </div>
+
+        <div id="setsViewContainer" style="display: block;">
+            <div id="setsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+
+        <div id="foldersViewContainer" style="display: none;">
+            <div id="foldersList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MÀN HÌNH 2: KHÔNG GIAN HỌC TẬP (STUDY SCREEN)-->
+    <!-- ========================================== -->
+    <div id="studyScreen" style="display: none;">
+        
+        <div class="sticky-menu">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <button onclick="goHome()" style="background-color: #555; margin-right: 15px;">⬅️ Quay lại</button>
+                <h2 id="studyTitle" style="flex: 1; margin: 0; color: #2e344e;"></h2>
+                <div id="menuButtons">
+                    <button id="btnTabStudy">📚 Kiểm tra</button>
+                    <button id="btnTabManage">⚙️ Quản lý</button>
+                    <button id="btnTabList">📋 Danh sách</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 1: Học từ vựng -->
+        <div id="studySection">
+            <div class="sticky-action-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <button id="btnClear" style="padding: 8px 15px; background-color: #ff9800; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Xóa Kết Quả 🧹</button>
+                <button id="btnToggleSpeak" style="padding: 8px 15px; background-color: #008CBA; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🔊 Tự động đọc: BẬT</button>
+                <div id="statsBoard" style="display: flex; gap: 15px; background: #f8f9fa; padding: 8px 20px; border-radius: 6px; border: 1px solid #e0e0e0; font-size: 14px; font-weight: bold;">
+                    <div style="color: #555;">📊 Thống kê:</div>
+                    <div style="color: #1976d2;">Tổng: <span id="statTotal">0</span></div>
+                    <div style="color: #2e7d32;">Đúng: <span id="statCorrect">0</span></div>
+                    <div style="color: #c62828;">Sai: <span id="statWrong">0</span></div>
+                    <div style="color: #ef6c00;">Tỷ lệ: <span id="statPercent">0%</span></div>
+                </div>
+            </div>
+            
+            <table id="vocabTable">
+                <thead>
+                    <tr>
+                        <th>STT</th>
+                        <th>Đề bài (Từ)</th>
+                        <th>Loại từ</th>
+                        <th>Câu trả lời (Nghĩa)</th>
+                        <th>Kết quả</th>
+                    </tr>
+                </thead>
+                <tbody id="vocabBody"></tbody>
+            </table>
+        </div>
+
+        <!-- TAB 2: Quản lý / Nhập dữ liệu -->
+        <div id="manageSection" style="display: none;">
+            <div style="margin-bottom: 20px; padding: 15px; border: 1px solid #4a4e69; background-color: #f2e9e4; border-radius: 5px;">
+                <h3>Nhập Dữ Liệu Hàng Loạt 🚀</h3>
+                <textarea id="bulkText" rows="6" style="width: 100%; margin-bottom: 10px; padding: 10px;" placeholder="Ví dụ:&#10;alert # v # cảnh giác"></textarea>
+                <div style="display: flex; gap: 30px; margin-bottom: 10px;">
+                    <div>
+                        <label><strong>Ký tự giữa Từ và Nghĩa:</strong></label><br>
+                        <input type="text" id="termSeparator" value="#" style="width: 60px; text-align: center; margin-top: 5px;">
+                    </div>
+                    <div>
+                        <label><strong>Ngăn cách giữa các Dòng:</strong></label><br>
+                        <select id="cardSeparator" style="margin-top: 5px; padding: 3px;">
+                            <option value="\n">Dòng mới (Enter 1 lần)</option>
+                            <option value="\n\n">Cách 1 dòng (Enter 2 lần)</option>
+                            <option value=";">Chấm phẩy (;)</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="btnImportBulk" style="background-color: #9a8c98; color: white;">Nhập dữ liệu ngay</button>
+                <div style="margin-top: 15px; margin-bottom: 15px;">
+                    <h4 style="margin-bottom: 10px;">Xem trước <span id="previewCount" style="color: #2196F3;">0</span> thẻ</h4>
+                    <div id="previewContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; padding: 5px; background: #fafafa; border-radius: 4px;">
+                        <p style="color: #888; font-style: italic; font-size: 14px;">Không có nội dung để xem trước</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Danh sách từ vựng -->
+        <div id="listSection" style="display: none;">
+            <table id="wordListTable">
+                <thead>
+                    <tr>
+                        <th>STT</th>
+                        <th>Tiếng Anh</th>
+                        <th>Loại từ</th>
+                        <th>Tiếng Việt</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="wordListBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- KHU VỰC CÁC HỘP THOẠI (MODALS)             -->
+    <!-- ========================================== -->
+    
+    <!-- Modal Sửa Từ Vựng -->
+    <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: white; padding: 20px; border-radius: 8px; width: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+            <h3 style="margin-top: 0; color: #2196F3;">Chỉnh sửa từ vựng ✏️</h3>
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Tiếng Anh:</label>
+                <input type="text" id="editEng" style="width: 100%; padding: 8px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Loại từ (VD: n, v, adj):</label>
+                <input type="text" id="editType" style="width: 100%; padding: 8px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Tiếng Việt:</label>
+                <input type="text" id="editVie" style="width: 100%; padding: 8px; box-sizing: border-box;">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 15px;">
+                <button id="btnCancelEdit" style="background-color: #ccc; color: black; padding: 8px 20px;">Hủy</button>
+                <button id="btnSaveEdit" style="background-color: #4CAF50; color: white; padding: 8px 20px;">Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xóa Từ Vựng -->
+    <div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: white; padding: 20px; border-radius: 8px; width: 350px; text-align: center;">
+            <h3 style="margin-top: 0; color: #d32f2f;">Xác nhận xóa ⚠️</h3>
+            <p id="deleteMessage" style="font-size: 16px; margin: 20px 0;">Bạn có chắc muốn xóa từ này không?</p>
+            <div style="display: flex; justify-content: center; gap: 15px;">
+                <button id="btnCancelDelete" style="background-color: #ccc; color: black; padding: 8px 20px;">Hủy</button>
+                <button id="btnConfirmDelete" style="background-color: #f44336; color: white; padding: 8px 20px;">Xóa ngay</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Sửa Tên Học Phần -->
+    <div id="editSetModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: white; padding: 20px; border-radius: 8px; width: 350px;">
+            <h3 style="margin-top: 0; color: #2196F3;">Đổi tên học phần ✏️</h3>
+            <input type="text" id="editSetTitle" style="width: 100%; padding: 8px; margin-bottom: 20px; box-sizing: border-box; font-size: 16px;">
+            <div style="display: flex; justify-content: flex-end; gap: 15px;">
+                <button onclick="document.getElementById('editSetModal').style.display='none'" style="background-color: #ccc; padding: 8px 20px;">Hủy</button>
+                <button id="btnSaveSetEdit" style="background-color: #4CAF50; color: white; padding: 8px 20px;">Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xóa Học Phần -->
+    <div id="deleteSetModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: white; padding: 20px; border-radius: 8px; width: 400px; text-align: center;">
+            <h3 style="margin-top: 0; color: #d32f2f;">Xóa học phần ⚠️</h3>
+            <p id="deleteSetMessage" style="font-size: 16px; margin: 15px 0;"></p>
+            <div style="display: flex; justify-content: center; gap: 15px;">
+                <button onclick="document.getElementById('deleteSetModal').style.display='none'" style="background-color: #ccc; padding: 8px 20px;">Hủy</button>
+                <button id="btnConfirmDeleteSet" style="background-color: #f44336; color: white; padding: 8px 20px;">Xóa ngay</button>
+            </div>
+        </div>
+    </div>
+    <!-- Modal Thêm Tài Liệu Vào Thư Mục -->
+    <div id="addMaterialModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 2000;">
+        <div class="material-modal-content">
+            <!-- Tiêu đề & Nút đóng -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; color: white;">Thêm tài liệu học</h2>
+                <button onclick="closeMaterialModal()" style="background: transparent; color: #a9b1d6; border: none; font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+            
+            <!-- Tabs & Nút Tạo mới -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; gap: 10px;">
+                    <button class="material-tab">Gần đây</button>
+                    <button class="material-tab active">Thư viện của bạn</button>
+                </div>
+                <button onclick="createNewSetForFolder()" style="background: transparent; color: #a9b1d6; border: none; cursor: pointer; font-weight: bold;">+ Tạo mới</button>
+            </div>
+            
+            <div style="color: #a9b1d6; font-size: 13px; font-weight: bold; margin-bottom: 10px;">Học phần ▾</div>
+            
+            <!-- Danh sách học phần (Render bằng JS) -->
+            <div id="materialList" style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+            </div>
+            
+            <!-- Nút Hoàn tất -->
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button onclick="closeMaterialModal()" style="background-color: #4a5dff; color: white; padding: 10px 30px; border: none; border-radius: 20px; font-weight: bold; cursor: pointer;">Hoàn tất</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 15px;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background-color: #4CAF50;
+    color: white;
+}
+
+tbody tr:nth-child(odd) { background-color: #f2f2f2; }
+tbody tr:nth-child(even) { background-color: #e6f7ff; }
+
+input {
+    width: 90%;
+    padding: 5px;
+    border: 1px solid #999;
+    border-radius: 4px;
+}
+
+button {
+    padding: 8px 15px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+button:hover { background-color: #d32f2f; }
+
+/* Sticky Elements */
+.sticky-menu {
+    position: sticky;
+    top: 0;
+    background-color: white;
+    z-index: 1000;
+    padding: 10px 0;
+}
+
+.sticky-action-row {
+    position: sticky;
+    top: 45px;
+    background-color: white;
+    z-index: 999;
+    padding: 10px 0 15px 0;
+}
+
+thead th {
+    position: sticky;
+    top: 105px;
+    z-index: 998;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
+}
+
+/* Home Screen Tabs & Folders */
+.home-nav-tabs {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 1px solid #4a4e69;
+    padding-bottom: 15px;
+}
+
+.home-tab {
+    background-color: transparent;
+    color: #a9b1d6;
+    border: 1px solid #4a4e69;
+    border-radius: 20px;
+    padding: 8px 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.home-tab:hover { background-color: #2e344e; }
+.home-tab.active {
+    background-color: #2e344e;
+    color: white;
+    border-color: white;
+}
+
+.folder-item {
+    background-color: #1a1e2e;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    border: 1px solid #2e344e;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.folder-item:hover { background-color: #2e344e; }
+.folder-item .folder-count {
+    font-size: 12px;
+    color: #a9b1d6;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+.folder-item .folder-name {
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+/* ==========================================
+   STYLING CHO NÚT BẤM BÊN TRONG THƯ MỤC
+========================================== */
+.folder-header-row {
+    display: flex;
+    justify-content: space-between; /* Đẩy nội dung ra 2 bên */
+    align-items: flex-start;
+    width: 100%;
+}
+
+.folder-actions {
+    display: flex;
+    gap: 12px; /* Khoảng cách giữa 2 nút */
+}
+
+/* Nút Thêm tài liệu học (Màu xanh, bo góc tròn nhiều) */
+.btn-add-material {
+    background-color: #4a5dff; 
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px; 
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 13px;
+    transition: 0.2s;
+}
+.btn-add-material:hover { background-color: #3b4be0; }
+
+/* Nút Xóa (Trong suốt, viền đỏ, chữ đỏ) */
+.btn-delete-folder {
+    background-color: transparent;
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: 0.2s;
+}
+.btn-delete-folder:hover { background-color: rgba(255, 107, 107, 0.1); }
+/* ==========================================
+   STYLING CHO MODAL THÊM TÀI LIỆU
+========================================== */
+.material-modal-content {
+    background-color: #1a1e2e; /* Nền tối đồng nhất */
+    width: 600px;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.material-tab {
+    background: transparent;
+    color: #a9b1d6;
+    border: 1px solid #4a4e69;
+    padding: 6px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.material-tab.active {
+    border-color: white;
+    color: white;
+}
+
+.material-item {
+    background-color: #0f111a;
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: 0.2s;
+}
+.material-item:hover {
+    background-color: #2e344e;
+}
+
+.material-item-title {
+    color: white;
+    font-weight: bold;
+    font-size: 15px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+}
+
+.material-item-desc {
+    color: #a9b1d6;
+    font-size: 12px;
+}
+
+/* Nút dấu cộng (+) và dấu Check (✓) */
+.btn-add-set {
+    background: transparent;
+    color: white;
+    border: 1px solid #a9b1d6;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+}
+.btn-add-set.added {
+    background: #4a5dff; /* Đổi sang màu xanh khi đã thêm */
+    border-color: #4a5dff;
+}
