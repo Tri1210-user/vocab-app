@@ -210,7 +210,130 @@
         </section>
 
         <!-- ========================================== -->
-        <!-- VIEW 2: CHI TIẾT HỌC PHẦN (SET DETAIL)    -->
+        <!-- VIEW 2: TẠO / SỬA HỌC PHẦN (CREATE SET VIEW) -->
+        <!-- ========================================== -->
+        <section id="createSetView" class="view-section" style="display: none;">
+            <!-- Sticky Top Header Bar -->
+            <div class="create-set-sticky-bar">
+                <div class="create-set-bar-left">
+                    <button class="btn btn-ghost btn-sm" onclick="cancelCreateSet()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                        <span>Hủy bỏ</span>
+                    </button>
+                    <div class="create-set-title-wrap">
+                        <h2 id="createSetMainHeading" class="detail-title">Tạo học phần mới</h2>
+                        <span class="badge badge-info" id="createSetCardCountBadge">0 thẻ từ vựng</span>
+                    </div>
+                </div>
+                <div class="create-set-bar-right">
+                    <button class="btn btn-primary btn-lg" id="btnSaveCreatedSet" onclick="saveNewSet()">
+                        🚀 Hoàn tất & Tạo học phần
+                    </button>
+                </div>
+            </div>
+
+            <!-- Set Meta Info Card -->
+            <div class="panel-card create-set-meta-card">
+                <div class="form-group">
+                    <label for="newSetTitleInput" class="large-label">Tiêu đề học phần <span class="required">*</span></label>
+                    <input type="text" id="newSetTitleInput" class="form-input large-input" placeholder="Ví dụ: TOEIC 600+ Hợp đồng & Đàm phán..." autocomplete="off">
+                    
+                    <!-- Quick Suggestion Title Chips -->
+                    <div class="suggestion-chips-row">
+                        <span class="suggestion-chip-label">Gợi ý nhanh:</span>
+                        <button type="button" class="chip" onclick="applyTitleSuggestion('TOEIC Part 5 & 6 Căn Bản')">TOEIC Part 5 & 6</button>
+                        <button type="button" class="chip" onclick="applyTitleSuggestion('TOEIC Từ vựng Hợp đồng & Pháp lý')">Hợp đồng & Pháp lý</button>
+                        <button type="button" class="chip" onclick="applyTitleSuggestion('Từ vựng Văn phòng & Giao tiếp Công sở')">Văn phòng & Công sở</button>
+                        <button type="button" class="chip" onclick="applyTitleSuggestion('Tiếng Anh Tiếp thị & Quảng cáo')">Marketing & Quảng cáo</button>
+                        <button type="button" class="chip" onclick="applyTitleSuggestion('IELTS Academic Essential Words')">IELTS Essential</button>
+                    </div>
+                </div>
+
+                <div class="form-row" style="margin-top: 16px;">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="newSetDescInput">Mô tả hoặc mục tiêu học tập (tùy chọn):</label>
+                        <input type="text" id="newSetDescInput" class="form-input" placeholder="Ghi chú mục tiêu điểm số, lưu ý phát âm hoặc nguồn tài liệu...">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <div class="flex-between">
+                            <label for="newSetFolderSelect">Thư mục lưu trữ:</label>
+                            <button type="button" class="btn-link-action" onclick="openCreateFolderModal()">+ Thư mục mới</button>
+                        </div>
+                        <select id="newSetFolderSelect" class="form-select"></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Import & Smart Tools Toolbar -->
+            <div class="create-tools-toolbar">
+                <div class="tools-toolbar-left">
+                    <div class="dropdown-wrap">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleDropdown('templateDropdown')">
+                            ⚡ Thêm từ mẫu TOEIC ▾
+                        </button>
+                        <div class="dropdown-menu" id="templateDropdown" style="display: none;">
+                            <div class="dropdown-item" onclick="insertWordTemplate('contracts')">📄 10 từ: Hợp đồng (Contracts)</div>
+                            <div class="dropdown-item" onclick="insertWordTemplate('marketing')">📢 10 từ: Tiếp thị (Marketing)</div>
+                            <div class="dropdown-item" onclick="insertWordTemplate('office')">💼 10 từ: Công sở (Office Life)</div>
+                            <div class="dropdown-item" onclick="insertWordTemplate('shopping')">🛒 10 từ: Mua sắm (Shopping)</div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-outline btn-sm" onclick="triggerCreateSetTxtUpload()">
+                        📄 Nhập từ file .TXT
+                    </button>
+                    <input type="file" id="createSetTxtFileInput" accept=".txt" style="display: none;" onchange="handleCreateSetTxtFile(event)">
+
+                    <button type="button" class="btn btn-outline btn-sm" onclick="openCreateSetBulkDrawer()">
+                        🚀 Dán văn bản hàng loạt
+                    </button>
+                </div>
+
+                <div class="tools-toolbar-right">
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="swapCreateSetColumns()" title="Hoán đổi cột Tiếng Anh và Tiếng Việt">
+                        🔄 Đảo Anh ⇄ Việt
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="cleanEmptyCreateSetRows()" title="Xóa các dòng trống chưa điền">
+                        🧹 Xóa dòng trống
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="clearAllCreateSetRows()" style="color: var(--danger);" title="Xóa toàn bộ các dòng">
+                        🗑️ Xóa hết
+                    </button>
+                </div>
+            </div>
+
+            <!-- Inline Bulk Drawer -->
+            <div id="createSetBulkDrawer" class="panel-card" style="display: none; margin-bottom: 16px; border-color: var(--primary);">
+                <div class="card-header flex-between">
+                    <div>
+                        <h4 class="card-title">🚀 Dán văn bản hàng loạt</h4>
+                        <p class="card-subtitle">Định dạng mỗi dòng một từ: <code>từ tiếng anh # loại từ # nghĩa tiếng việt</code></p>
+                    </div>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="closeCreateSetBulkDrawer()">✕ Đóng</button>
+                </div>
+                <textarea id="createSetBulkInput" rows="5" class="form-textarea" placeholder="Ví dụ:&#10;anticipate # v # dự đoán, lường trước&#10;efficient # adj # hiệu quả&#10;schedule # n # lịch trình"></textarea>
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="closeCreateSetBulkDrawer()">Hủy</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="applyCreateSetBulkPaste()">+ Chèn vào danh sách thẻ</button>
+                </div>
+            </div>
+
+            <!-- Word Cards List -->
+            <div id="createSetWordRowsList" class="create-set-rows-container"></div>
+
+            <!-- Footer Add Buttons -->
+            <div class="create-set-footer-actions">
+                <button type="button" class="btn btn-secondary btn-lg" onclick="addCreateSetRow(true)">
+                    ➕ Thêm 1 thẻ từ vựng (Enter)
+                </button>
+                <button type="button" class="btn btn-outline btn-lg" onclick="addMultipleCreateSetRows(5)">
+                    ➕ Thêm 5 thẻ
+                </button>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- VIEW 3: CHI TIẾT HỌC PHẦN (SET DETAIL)    -->
         <!-- ========================================== -->
         <section id="setDetailView" class="view-section" style="display: none;">
             <!-- Top Sticky Navigation Bar -->
@@ -230,6 +353,10 @@
                 </div>
 
                 <div class="detail-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="openCreateSetView(null, currentSetIndex)" title="Mở phòng soạn thảo để sửa toàn diện học phần này">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        <span>Soạn thảo / Sửa</span>
+                    </button>
                     <button class="btn btn-outline btn-sm" onclick="exportCurrentSetTxt()" title="Xuất học phần này thành file .txt">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         <span>Xuất .txt</span>

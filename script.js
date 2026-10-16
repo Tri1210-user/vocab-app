@@ -209,6 +209,7 @@ window.navigateTo = function(viewName) {
     
     // Hide all view sections
     document.getElementById('libraryView').style.display = 'none';
+    document.getElementById('createSetView').style.display = 'none';
     document.getElementById('setDetailView').style.display = 'none';
     document.getElementById('testView').style.display = 'none';
 
@@ -219,6 +220,8 @@ window.navigateTo = function(viewName) {
     if (viewName === 'library') {
         document.getElementById('libraryView').style.display = 'flex';
         renderLibrary();
+    } else if (viewName === 'createSet') {
+        document.getElementById('createSetView').style.display = 'flex';
     } else if (viewName === 'detail') {
         document.getElementById('setDetailView').style.display = 'flex';
         renderSetDetail();
@@ -521,18 +524,7 @@ window.filterInnerFolderSets = function() {
 };
 
 window.createNewSetInCurrentFolder = function() {
-    const defaultTitle = `VOCABULARY #${appData.length + 1}`;
-    const title = prompt(`Tạo học phần mới trong thư mục [${currentOpenedFolder}]:\nNhập tên học phần:`, defaultTitle);
-    if (title && title.trim() !== '') {
-        const newSet = {
-            title: title.trim(),
-            folder: currentOpenedFolder,
-            words: []
-        };
-        appData.push(newSet);
-        saveAppData();
-        openSet(appData.length - 1);
-    }
+    openCreateSetView(currentOpenedFolder);
 };
 
 window.removeSetFromFolder = function(setIndex) {
@@ -773,26 +765,531 @@ window.createNewFolder = function() {
     openCreateFolderModal();
 };
 
-window.createNewSet = function() {
-    const title = prompt("Nhập tên học phần mới:", "VOCABULARY TOEIC #" + (appData.length + 1));
-    if (title && title.trim() !== '') {
-        const folder = prompt("Nhập thư mục để lưu (để trống nếu 'Chưa phân loại'):", currentOpenedFolder || "Chưa phân loại");
-        const cleanFolder = folder && folder.trim() ? folder.trim() : "Chưa phân loại";
+// ==========================================
+// CREATE SET STUDIO LOGIC
+// ==========================================
 
-        if (!folderData.some(f => f.name === cleanFolder)) {
-            folderData.push({ name: cleanFolder, color: '#3b82f6', icon: '📁' });
-            saveFolderData();
+const WORD_TEMPLATES = {
+    contracts: {
+        title: "TOEIC: Hợp đồng & Pháp lý (Contracts)",
+        words: [
+            { eng: "abide by", type: "v", vie: "tuân theo, chịu theo" },
+            { eng: "agreement", type: "n", vie: "hợp đồng, thỏa thuận" },
+            { eng: "assurance", type: "n", vie: "sự cam đoan, bảo đảm" },
+            { eng: "cancellation", type: "n", vie: "sự hủy bỏ" },
+            { eng: "determine", type: "v", vie: "xác định, quyết định" },
+            { eng: "engage", type: "v", vie: "tham gia, cam kết" },
+            { eng: "establish", type: "v", vie: "thiết lập, thành lập" },
+            { eng: "obligate", type: "v", vie: "bắt buộc, ép buộc" },
+            { eng: "party", type: "n", vie: "bên tham gia hợp đồng" },
+            { eng: "provision", type: "n", vie: "điều khoản, dự phòng" }
+        ]
+    },
+    marketing: {
+        title: "TOEIC: Tiếp thị & Quảng cáo (Marketing)",
+        words: [
+            { eng: "attract", type: "v", vie: "thu hút, hấp dẫn" },
+            { eng: "compare", type: "v", vie: "so sánh" },
+            { eng: "competition", type: "n", vie: "sự cạnh tranh" },
+            { eng: "consume", type: "v", vie: "tiêu thụ, tiêu dùng" },
+            { eng: "convince", type: "v", vie: "thuyết phục" },
+            { eng: "currently", type: "adv", vie: "hiện tại, hiện nay" },
+            { eng: "fad", type: "n", vie: "mốt nhất thời" },
+            { eng: "inspire", type: "v", vie: "truyền cảm hứng" },
+            { eng: "persuasion", type: "n", vie: "sự thuyết phục" },
+            { eng: "productive", type: "adj", vie: "năng suất, hiệu quả" }
+        ]
+    },
+    office: {
+        title: "TOEIC: Văn phòng & Hội họp (Office Life)",
+        words: [
+            { eng: "agenda", type: "n", vie: "chương trình nghị sự, lịch trình" },
+            { eng: "colleague", type: "n", vie: "đồng nghiệp" },
+            { eng: "deadline", type: "n", vie: "hạn chót hoàn thành" },
+            { eng: "equipment", type: "n", vie: "trang thiết bị máy móc" },
+            { eng: "facilitate", type: "v", vie: "tạo điều kiện thuận lợi" },
+            { eng: "implement", type: "v", vie: "thực thi, triển khai" },
+            { eng: "schedule", type: "n", vie: "lịch trình công tác" },
+            { eng: "supervise", type: "v", vie: "giám sát, quản lý" },
+            { eng: "task", type: "n", vie: "nhiệm vụ, công việc" },
+            { eng: "verify", type: "v", vie: "xác minh, kiểm chứng" }
+        ]
+    },
+    shopping: {
+        title: "TOEIC: Mua sắm & Bảo hành (Shopping & Warranty)",
+        words: [
+            { eng: "bargain", type: "n", vie: "món hời, giá rẻ" },
+            { eng: "bear", type: "v", vie: "chịu đựng, gánh vác" },
+            { eng: "checkout", type: "n", vie: "quầy thanh toán tiền" },
+            { eng: "comfort", type: "n", vie: "sự thoải mái, tiện nghi" },
+            { eng: "expand", type: "v", vie: "mở rộng quy mô" },
+            { eng: "explore", type: "v", vie: "thăm dò, khám phá" },
+            { eng: "item", type: "n", vie: "món đồ, mặt hàng" },
+            { eng: "mandatory", type: "adj", vie: "bắt buộc theo quy định" },
+            { eng: "merchandise", type: "n", vie: "hàng hóa thương mại" },
+            { eng: "refund", type: "n", vie: "tiền hoàn lại, tiền trả lại" }
+        ]
+    }
+};
+
+let createSetRowIdCounter = 0;
+let createSetRows = [];
+let editingSetIndex = null; // null = create new, number = edit existing set
+
+window.createNewSet = function() {
+    openCreateSetView(currentOpenedFolder || null);
+};
+
+window.openCreateSetView = function(preselectedFolder = null, editIndex = null) {
+    editingSetIndex = editIndex;
+    createSetRows = [];
+    createSetRowIdCounter = 0;
+
+    const mainHeading = document.getElementById('createSetMainHeading');
+    const saveBtn = document.getElementById('btnSaveCreatedSet');
+    const titleInput = document.getElementById('newSetTitleInput');
+    const descInput = document.getElementById('newSetDescInput');
+    const folderSelect = document.getElementById('newSetFolderSelect');
+
+    // Populate folders dropdown
+    folderSelect.innerHTML = '';
+    folderData.forEach(folder => {
+        const fName = typeof folder === 'string' ? folder : folder.name;
+        const fIcon = typeof folder === 'string' ? '📁' : (folder.icon || '📁');
+        folderSelect.innerHTML += `<option value="${escapeHtml(fName)}">${fIcon} ${escapeHtml(fName)}</option>`;
+    });
+
+    let targetFolder = preselectedFolder || 'Chưa phân loại';
+
+    if (editIndex !== null && appData[editIndex]) {
+        const set = appData[editIndex];
+        mainHeading.textContent = '✏️ Chỉnh sửa học phần';
+        saveBtn.textContent = '💾 Lưu thay đổi';
+        titleInput.value = set.title || '';
+        descInput.value = set.description || '';
+        targetFolder = set.folder || 'Chưa phân loại';
+
+        // Load existing words
+        if (set.words && set.words.length > 0) {
+            set.words.forEach(w => {
+                createSetRowIdCounter++;
+                createSetRows.push({
+                    id: createSetRowIdCounter,
+                    eng: w.eng || '',
+                    type: w.type || '',
+                    vie: w.vie || ''
+                });
+            });
+        } else {
+            for (let i = 0; i < 4; i++) {
+                createSetRowIdCounter++;
+                createSetRows.push({ id: createSetRowIdCounter, eng: '', type: '', vie: '' });
+            }
+        }
+    } else {
+        mainHeading.textContent = '✨ Tạo học phần mới';
+        saveBtn.textContent = '🚀 Hoàn tất & Tạo học phần';
+        titleInput.value = '';
+        descInput.value = '';
+
+        // Default 4 empty rows
+        for (let i = 0; i < 4; i++) {
+            createSetRowIdCounter++;
+            createSetRows.push({ id: createSetRowIdCounter, eng: '', type: '', vie: '' });
+        }
+    }
+
+    folderSelect.value = targetFolder;
+
+    navigateTo('createSet');
+    renderCreateSetWordRows();
+    setTimeout(() => {
+        if (!titleInput.value) titleInput.focus();
+    }, 80);
+};
+
+function renderCreateSetWordRows() {
+    const container = document.getElementById('createSetWordRowsList');
+    container.innerHTML = '';
+
+    const badge = document.getElementById('createSetCardCountBadge');
+    badge.textContent = `${createSetRows.length} thẻ từ vựng`;
+
+    createSetRows.forEach((row, index) => {
+        const card = document.createElement('div');
+        card.className = 'create-word-card';
+        card.setAttribute('data-row-id', row.id);
+        card.innerHTML = `
+            <div class="create-word-card-header">
+                <span class="create-word-number">${index + 1}</span>
+                <div class="create-word-card-tools">
+                    <button type="button" class="icon-btn-sm" onclick="speakCreateWordRow(${row.id})" title="Nghe phát âm">🔊</button>
+                    <button type="button" class="icon-btn-sm" onclick="moveCreateWordRow(${row.id}, -1)" ${index === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''} title="Di chuyển lên">↑</button>
+                    <button type="button" class="icon-btn-sm" onclick="moveCreateWordRow(${row.id}, 1)" ${index === createSetRows.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''} title="Di chuyển xuống">↓</button>
+                    <button type="button" class="icon-btn-sm text-danger" onclick="deleteCreateWordRow(${row.id})" title="Xóa thẻ này">🗑️</button>
+                </div>
+            </div>
+            <div class="create-word-card-inputs">
+                <div class="create-input-group col-eng">
+                    <input type="text" class="create-word-input input-eng" placeholder="Nhập từ tiếng Anh..." value="${escapeHtml(row.eng)}" oninput="handleCreateWordInput(${row.id}, 'eng', this.value)" autocomplete="off">
+                    <span class="create-input-label">THUẬT NGỮ (TIẾNG ANH)</span>
+                </div>
+                <div class="create-input-group col-type">
+                    <input type="text" class="create-word-input input-type text-center" placeholder="n, v, adj..." value="${escapeHtml(row.type)}" oninput="handleCreateWordInput(${row.id}, 'type', this.value)" autocomplete="off">
+                    <div class="quick-type-mini-chips">
+                        <span onclick="setRowType(${row.id}, 'n')">n</span>
+                        <span onclick="setRowType(${row.id}, 'v')">v</span>
+                        <span onclick="setRowType(${row.id}, 'adj')">adj</span>
+                        <span onclick="setRowType(${row.id}, 'adv')">adv</span>
+                    </div>
+                    <span class="create-input-label">LOẠI TỪ</span>
+                </div>
+                <div class="create-input-group col-vie">
+                    <input type="text" class="create-word-input input-vie" placeholder="Nhập định nghĩa tiếng Việt..." value="${escapeHtml(row.vie)}" oninput="handleCreateWordInput(${row.id}, 'vie', this.value)" onkeydown="handleCreateWordKeydown(event, ${row.id})" autocomplete="off">
+                    <span class="create-input-label">ĐỊNH NGHĨA (TIẾNG VIỆT)</span>
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+window.handleCreateWordInput = function(id, field, value) {
+    const row = createSetRows.find(r => r.id === id);
+    if (row) {
+        row[field] = value;
+    }
+};
+
+window.handleCreateWordKeydown = function(event, id) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const index = createSetRows.findIndex(r => r.id === id);
+        if (index === createSetRows.length - 1) {
+            addCreateSetRow(true);
+        } else {
+            const nextRow = createSetRows[index + 1];
+            const nextInput = document.querySelector(`.create-word-card[data-row-id="${nextRow.id}"] .input-eng`);
+            nextInput?.focus();
+        }
+    } else if (event.key === 'Tab' && !event.shiftKey) {
+        const index = createSetRows.findIndex(r => r.id === id);
+        if (index === createSetRows.length - 1) {
+            event.preventDefault();
+            addCreateSetRow(true);
+        }
+    }
+};
+
+window.addCreateSetRow = function(focus = false) {
+    createSetRowIdCounter++;
+    const newId = createSetRowIdCounter;
+    createSetRows.push({ id: newId, eng: '', type: '', vie: '' });
+    renderCreateSetWordRows();
+
+    if (focus) {
+        setTimeout(() => {
+            const input = document.querySelector(`.create-word-card[data-row-id="${newId}"] .input-eng`);
+            input?.focus();
+        }, 50);
+    }
+};
+
+window.addMultipleCreateSetRows = function(count = 5) {
+    for (let i = 0; i < count; i++) {
+        createSetRowIdCounter++;
+        createSetRows.push({ id: createSetRowIdCounter, eng: '', type: '', vie: '' });
+    }
+    renderCreateSetWordRows();
+};
+
+window.deleteCreateWordRow = function(id) {
+    createSetRows = createSetRows.filter(r => r.id !== id);
+    if (createSetRows.length === 0) {
+        createSetRowIdCounter++;
+        createSetRows.push({ id: createSetRowIdCounter, eng: '', type: '', vie: '' });
+    }
+    renderCreateSetWordRows();
+};
+
+window.moveCreateWordRow = function(id, delta) {
+    const index = createSetRows.findIndex(r => r.id === id);
+    if (index === -1) return;
+    const newIndex = index + delta;
+    if (newIndex < 0 || newIndex >= createSetRows.length) return;
+
+    const temp = createSetRows[index];
+    createSetRows[index] = createSetRows[newIndex];
+    createSetRows[newIndex] = temp;
+
+    renderCreateSetWordRows();
+};
+
+window.setRowType = function(id, type) {
+    const row = createSetRows.find(r => r.id === id);
+    if (row) {
+        row.type = type;
+        const input = document.querySelector(`.create-word-card[data-row-id="${id}"] .input-type`);
+        if (input) input.value = type;
+    }
+};
+
+window.speakCreateWordRow = function(id) {
+    const row = createSetRows.find(r => r.id === id);
+    if (row && row.eng.trim()) {
+        speakWord(row.eng);
+    }
+};
+
+window.applyTitleSuggestion = function(title) {
+    document.getElementById('newSetTitleInput').value = title;
+};
+
+window.swapCreateSetColumns = function() {
+    createSetRows.forEach(row => {
+        const temp = row.eng;
+        row.eng = row.vie;
+        row.vie = temp;
+    });
+    renderCreateSetWordRows();
+};
+
+window.cleanEmptyCreateSetRows = function() {
+    createSetRows = createSetRows.filter(r => r.eng.trim() !== '' || r.vie.trim() !== '');
+    if (createSetRows.length === 0) {
+        createSetRowIdCounter++;
+        createSetRows.push({ id: createSetRowIdCounter, eng: '', type: '', vie: '' });
+    }
+    renderCreateSetWordRows();
+};
+
+window.clearAllCreateSetRows = function() {
+    if (confirm("Bạn có chắc chắn muốn xóa tất cả các thẻ đang soạn thảo không?")) {
+        createSetRows = [];
+        for (let i = 0; i < 3; i++) {
+            createSetRowIdCounter++;
+            createSetRows.push({ id: createSetRowIdCounter, eng: '', type: '', vie: '' });
+        }
+        renderCreateSetWordRows();
+    }
+};
+
+window.toggleDropdown = function(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-wrap')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.style.display = 'none';
+        });
+    }
+});
+
+window.insertWordTemplate = function(type) {
+    const template = WORD_TEMPLATES[type];
+    if (!template) return;
+
+    const titleInput = document.getElementById('newSetTitleInput');
+    if (!titleInput.value.trim()) {
+        titleInput.value = template.title;
+    }
+
+    // Filter out completely empty trailing rows
+    createSetRows = createSetRows.filter(r => r.eng.trim() !== '' || r.vie.trim() !== '');
+
+    template.words.forEach(w => {
+        createSetRowIdCounter++;
+        createSetRows.push({
+            id: createSetRowIdCounter,
+            eng: w.eng,
+            type: w.type || '',
+            vie: w.vie
+        });
+    });
+
+    renderCreateSetWordRows();
+    document.getElementById('templateDropdown').style.display = 'none';
+};
+
+window.triggerCreateSetTxtUpload = function() {
+    document.getElementById('createSetTxtFileInput').click();
+};
+
+window.handleCreateSetTxtFile = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/);
+        let addedCount = 0;
+
+        // Clean out empty rows first
+        createSetRows = createSetRows.filter(r => r.eng.trim() !== '' || r.vie.trim() !== '');
+
+        lines.forEach(line => {
+            const clean = line.trim();
+            if (!clean) return;
+
+            let parts = clean.split('#');
+            if (parts.length === 1 && clean.includes('\t')) parts = clean.split('\t');
+
+            if (parts.length >= 3) {
+                createSetRowIdCounter++;
+                createSetRows.push({
+                    id: createSetRowIdCounter,
+                    eng: parts[0].trim(),
+                    type: parts[1].trim(),
+                    vie: parts.slice(2).join('#').trim()
+                });
+                addedCount++;
+            } else if (parts.length === 2) {
+                createSetRowIdCounter++;
+                createSetRows.push({
+                    id: createSetRowIdCounter,
+                    eng: parts[0].trim(),
+                    type: '',
+                    vie: parts[1].trim()
+                });
+                addedCount++;
+            }
+        });
+
+        const titleInput = document.getElementById('newSetTitleInput');
+        if (!titleInput.value.trim()) {
+            titleInput.value = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
         }
 
+        renderCreateSetWordRows();
+        alert(`Đã nhập thành công ${addedCount} từ vựng từ file .txt!`);
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+};
+
+window.openCreateSetBulkDrawer = function() {
+    document.getElementById('createSetBulkDrawer').style.display = 'block';
+    document.getElementById('createSetBulkInput').focus();
+};
+
+window.closeCreateSetBulkDrawer = function() {
+    document.getElementById('createSetBulkDrawer').style.display = 'none';
+};
+
+window.applyCreateSetBulkPaste = function() {
+    const raw = document.getElementById('createSetBulkInput').value.trim();
+    if (!raw) return;
+
+    createSetRows = createSetRows.filter(r => r.eng.trim() !== '' || r.vie.trim() !== '');
+
+    const lines = raw.split(/\r?\n/);
+    let count = 0;
+
+    lines.forEach(line => {
+        const clean = line.trim();
+        if (!clean) return;
+
+        let parts = clean.split('#');
+        if (parts.length >= 3) {
+            createSetRowIdCounter++;
+            createSetRows.push({
+                id: createSetRowIdCounter,
+                eng: parts[0].trim(),
+                type: parts[1].trim(),
+                vie: parts.slice(2).join('#').trim()
+            });
+            count++;
+        } else if (parts.length === 2) {
+            createSetRowIdCounter++;
+            createSetRows.push({
+                id: createSetRowIdCounter,
+                eng: parts[0].trim(),
+                type: '',
+                vie: parts[1].trim()
+            });
+            count++;
+        }
+    });
+
+    document.getElementById('createSetBulkInput').value = '';
+    closeCreateSetBulkDrawer();
+    renderCreateSetWordRows();
+    alert(`Đã thêm ${count} thẻ từ văn bản dán hàng loạt!`);
+};
+
+window.saveNewSet = function() {
+    const titleInput = document.getElementById('newSetTitleInput');
+    const title = titleInput.value.trim();
+
+    if (!title) {
+        alert("Vui lòng nhập tiêu đề cho học phần!");
+        titleInput.focus();
+        return;
+    }
+
+    const folder = document.getElementById('newSetFolderSelect').value || 'Chưa phân loại';
+    const description = document.getElementById('newSetDescInput').value.trim();
+
+    // Clean valid words: require at least eng or vie
+    const cleanWords = [];
+    createSetRows.forEach(r => {
+        const eng = r.eng.trim();
+        const type = r.type.trim();
+        const vie = r.vie.trim();
+        if (eng || vie) {
+            cleanWords.push({ eng, type, vie });
+        }
+    });
+
+    if (cleanWords.length === 0) {
+        if (!confirm("Học phần này hiện chưa có thẻ từ vựng nào. Bạn có chắc muốn tạo học phần trống không?")) {
+            return;
+        }
+    }
+
+    if (editingSetIndex !== null && appData[editingSetIndex]) {
+        // UPDATE EXISTING SET
+        appData[editingSetIndex].title = title;
+        appData[editingSetIndex].folder = folder;
+        appData[editingSetIndex].description = description;
+        appData[editingSetIndex].words = cleanWords;
+        saveAppData();
+        openSet(editingSetIndex);
+    } else {
+        // CREATE NEW SET
         const newSet = {
-            title: title.trim(),
-            folder: cleanFolder,
-            words: []
+            title,
+            folder,
+            description,
+            words: cleanWords
         };
         appData.push(newSet);
         saveAppData();
-
         openSet(appData.length - 1);
+    }
+};
+
+window.cancelCreateSet = function() {
+    const hasContent = document.getElementById('newSetTitleInput').value.trim() !== '' ||
+        createSetRows.some(r => r.eng.trim() !== '' || r.vie.trim() !== '');
+
+    if (hasContent) {
+        if (!confirm("Bạn có các thay đổi chưa lưu. Bạn có chắc chắn muốn hủy bỏ không?")) {
+            return;
+        }
+    }
+
+    if (currentOpenedFolder) {
+        navigateTo('library');
+        switchLibraryTab('folders');
+    } else {
+        navigateTo('library');
     }
 };
 
