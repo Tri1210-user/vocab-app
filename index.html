@@ -113,9 +113,99 @@
                 </div>
             </div>
 
-            <!-- Tab: Folders List -->
+            <!-- Tab: Folders List & Explorer -->
             <div id="foldersContainer" class="tab-panel" style="display: none;">
-                <div id="foldersList" class="folders-grid"></div>
+                <!-- Sub-view 1: Folders Overview (List of all folders) -->
+                <div id="foldersOverview">
+                    <div class="search-filter-bar">
+                        <div class="search-box">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input type="text" id="folderSearchInput" placeholder="Tìm kiếm thư mục..." oninput="filterFolders()">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="openCreateFolderModal()">
+                            + Thư mục mới
+                        </button>
+                    </div>
+                    <div id="foldersList" class="folders-grid"></div>
+                    <div id="emptyFoldersState" class="empty-state" style="display: none;">
+                        <div class="empty-icon">📁</div>
+                        <h3>Chưa có thư mục nào</h3>
+                        <p>Tạo thư mục để tổ chức và phân loại các học phần học tập của bạn như trên máy tính.</p>
+                        <button class="btn btn-primary" onclick="openCreateFolderModal()">+ Tạo thư mục ngay</button>
+                    </div>
+                </div>
+
+                <!-- Sub-view 2: Folder Contents Explorer (Browse sets inside a folder like Windows Explorer) -->
+                <div id="folderContentsView" style="display: none;">
+                    <!-- Breadcrumb Navigation Bar -->
+                    <div class="explorer-breadcrumb-bar">
+                        <button class="btn btn-ghost btn-sm" onclick="closeFolderContents()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                            <span>Tất cả thư mục</span>
+                        </button>
+                        <span class="breadcrumb-separator">/</span>
+                        <div class="breadcrumb-current">
+                            <span id="explorerFolderIcon" class="breadcrumb-icon">📁</span>
+                            <span id="explorerFolderName" class="breadcrumb-title">Tên thư mục</span>
+                        </div>
+                    </div>
+
+                    <!-- Folder Banner Card -->
+                    <div class="folder-explorer-banner" id="folderExplorerBanner">
+                        <div class="folder-banner-left">
+                            <div class="folder-banner-icon" id="folderBannerIcon">📁</div>
+                            <div class="folder-banner-info">
+                                <div class="folder-banner-title-row">
+                                    <h2 id="folderBannerTitle" class="folder-banner-title">Tên thư mục</h2>
+                                    <button class="btn btn-outline btn-sm" onclick="openEditCurrentFolderModal()" title="Chỉnh sửa tên, màu sắc, icon của thư mục">
+                                        ✏️ Sửa thư mục
+                                    </button>
+                                </div>
+                                <div class="folder-banner-meta" id="folderBannerMeta">
+                                    <span class="meta-pill" id="folderBannerSetCount">0 học phần</span>
+                                    <span class="meta-pill" id="folderBannerWordCount">0 từ vựng</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="folder-banner-actions">
+                            <button class="btn btn-primary btn-sm" onclick="createNewSetInCurrentFolder()">
+                                + Tạo học phần tại đây
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="openFolderManageModal(currentOpenedFolder)">
+                                📥 Thêm học phần có sẵn
+                            </button>
+                            <button class="btn btn-outline btn-sm" onclick="testCurrentFolderSets()" title="Luyện tập tất cả các từ trong thư mục này">
+                                🎯 Kiểm tra thư mục
+                            </button>
+                            <button id="btnDeleteFolderInBanner" class="btn btn-ghost btn-sm" onclick="deleteCurrentFolder()" style="color: var(--danger);" title="Xóa thư mục">
+                                🗑️ Xóa
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search inside folder -->
+                    <div class="search-filter-bar" style="margin-top: 16px;">
+                        <div class="search-box">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input type="text" id="folderInnerSearchInput" placeholder="Tìm kiếm học phần trong thư mục này..." oninput="filterInnerFolderSets()">
+                        </div>
+                        <span id="folderInnerCountBadge" class="badge badge-info" style="align-self: center;">0 học phần</span>
+                    </div>
+
+                    <!-- Sets inside this folder (Clicking any set opens it directly) -->
+                    <div id="folderSetsList" class="cards-grid"></div>
+
+                    <!-- Empty State inside folder -->
+                    <div id="folderSetsEmptyState" class="empty-state" style="display: none;">
+                        <div class="empty-icon" id="folderEmptyIcon">📂</div>
+                        <h3>Thư mục này đang trống</h3>
+                        <p>Chưa có học phần nào trong thư mục này. Bạn có thể tạo học phần mới ngay tại đây hoặc thêm các học phần có sẵn vào.</p>
+                        <div class="btn-group" style="justify-content: center; margin-top: 14px; gap: 10px; display: flex;">
+                            <button class="btn btn-primary" onclick="createNewSetInCurrentFolder()">+ Tạo học phần mới tại đây</button>
+                            <button class="btn btn-secondary" onclick="openFolderManageModal(currentOpenedFolder)">+ Thêm học phần có sẵn</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -126,7 +216,7 @@
             <!-- Top Sticky Navigation Bar -->
             <div class="detail-header-bar">
                 <div class="detail-back-group">
-                    <button class="btn btn-ghost btn-sm" onclick="navigateTo('library')">
+                    <button class="btn btn-ghost btn-sm" onclick="goBackFromSetDetail()">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                         <span>Thư viện</span>
                     </button>
@@ -680,6 +770,71 @@
             <div class="modal-footer justify-center" style="margin-top: 20px;">
                 <button class="btn btn-ghost" onclick="closeDeleteSetModal()">Hủy</button>
                 <button class="btn btn-danger" id="btnConfirmDeleteSet">Xóa học phần</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Tạo / Sửa Thư Mục (Đổi tên, màu sắc, icon) -->
+    <div id="editFolderModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card modal-md">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="folderModalTitle">📁 Chỉnh sửa thư mục</h3>
+                    <p class="modal-subtitle">Tùy biến tên, biểu tượng và màu sắc nhận diện</p>
+                </div>
+                <button class="modal-close-btn" onclick="closeFolderEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <!-- 1. Tên thư mục -->
+                <div class="form-group">
+                    <label for="folderModalNameInput">Tên thư mục <span class="required">*</span></label>
+                    <input type="text" id="folderModalNameInput" class="form-input" placeholder="Ví dụ: TOEIC Căn Bản, Giao Tiếp, Công Sở..." autocomplete="off" oninput="updateFolderModalPreview()">
+                </div>
+
+                <!-- 2. Chọn Icon -->
+                <div class="form-group">
+                    <div class="flex-between" style="margin-bottom: 6px;">
+                        <label>Chọn biểu tượng (Icon):</label>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 12px; color: var(--text-muted);">Icon tùy chọn:</span>
+                            <input type="text" id="folderCustomIconInput" class="form-input text-center custom-icon-input" placeholder="✨" maxlength="4" oninput="handleCustomIconInput(this.value)">
+                        </div>
+                    </div>
+                    <div class="icon-picker-grid" id="folderIconGrid"></div>
+                </div>
+
+                <!-- 3. Chọn Màu sắc -->
+                <div class="form-group">
+                    <div class="flex-between" style="margin-bottom: 6px;">
+                        <label>Màu sắc chủ đạo:</label>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 12px; color: var(--text-muted);">Màu tùy chỉnh:</span>
+                            <input type="color" id="folderCustomColorInput" class="native-color-picker" onchange="handleCustomColorChange(this.value)">
+                        </div>
+                    </div>
+                    <div class="color-swatches-grid" id="folderColorSwatches"></div>
+                </div>
+
+                <!-- 4. Xem trước trực quan (Live Preview) -->
+                <div class="form-group" style="margin-top: 18px; margin-bottom: 0;">
+                    <label>Xem trước thư mục:</label>
+                    <div class="folder-preview-card" id="folderModalPreviewCard">
+                        <div class="folder-card-header">
+                            <div class="folder-icon" id="folderPreviewIcon">📁</div>
+                            <div>
+                                <div class="folder-name" id="folderPreviewName">Tên thư mục</div>
+                                <div class="folder-count-badge" id="folderPreviewMeta">0 học phần • 0 từ</div>
+                            </div>
+                        </div>
+                        <div class="folder-preview-indicator">
+                            <span>Mở thư mục ➔</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeFolderEditModal()">Hủy</button>
+                <button class="btn btn-primary" id="btnSaveFolderModal" onclick="saveFolderModalData()">Lưu thư mục</button>
             </div>
         </div>
     </div>

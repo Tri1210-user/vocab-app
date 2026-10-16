@@ -58,12 +58,65 @@ const SAMPLE_PRESETS = [
     }
 ];
 
+// Preset Folder Customization Options
+const PRESET_FOLDER_ICONS = [
+    '📁', '📂', '📚', '💼', '🎓', '🌟', '🎯', '💡',
+    '🚀', '🏷️', '🌐', '💻', '📝', '🔥', '☕', '🏆',
+    '✈️', '🔬', '🎨', '🎵', '🏥', '⚖️'
+];
+
+const PRESET_FOLDER_COLORS = [
+    { hex: '#3b82f6', name: 'Xanh dương' },
+    { hex: '#10b981', name: 'Xanh ngọc lục' },
+    { hex: '#6366f1', name: 'Tím Indigo' },
+    { hex: '#8b5cf6', name: 'Tím Violet' },
+    { hex: '#ec4899', name: 'Hồng tươi' },
+    { hex: '#ef4444', name: 'Đỏ san hô' },
+    { hex: '#f97316', name: 'Cam rực rỡ' },
+    { hex: '#eab308', name: 'Vàng tươi' },
+    { hex: '#06b6d4', name: 'Xanh Cyan' },
+    { hex: '#14b8a6', name: 'Xanh Teal' },
+    { hex: '#64748b', name: 'Xám Slate' },
+    { hex: '#0f172a', name: 'Đen Slate' }
+];
+
+function normalizeFolderData(raw) {
+    if (!raw || !Array.isArray(raw)) return [];
+    const list = raw.map(item => {
+        if (typeof item === 'string') {
+            let color = '#3b82f6';
+            let icon = '📁';
+            if (item === 'Chưa phân loại') {
+                color = '#64748b';
+                icon = '📁';
+            } else if (item.includes('TOEIC')) {
+                color = '#3b82f6';
+                icon = '📚';
+            } else if (item.includes('công sở') || item.includes('Văn phòng')) {
+                color = '#10b981';
+                icon = '💼';
+            }
+            return { name: item, color, icon };
+        }
+        return {
+            name: item.name || 'Chưa phân loại',
+            color: item.color || '#3b82f6',
+            icon: item.icon || '📁'
+        };
+    });
+
+    if (!list.some(f => f.name === 'Chưa phân loại')) {
+        list.unshift({ name: 'Chưa phân loại', color: '#64748b', icon: '📁' });
+    }
+    return list;
+}
+
 // ==========================================================================
 // 1. STATE & STORAGE MANAGEMENT
 // ==========================================================================
 
 let appData = JSON.parse(localStorage.getItem('toeicAppData'));
-let folderData = JSON.parse(localStorage.getItem('toeicFolderData'));
+let rawFolderData = JSON.parse(localStorage.getItem('toeicFolderData'));
 
 // Auto-seed sample presets if no existing data
 if (!appData || !Array.isArray(appData) || appData.length === 0) {
@@ -76,11 +129,12 @@ if (!appData || !Array.isArray(appData) || appData.length === 0) {
     localStorage.setItem('toeicAppData', JSON.stringify(appData));
 }
 
-if (!folderData || !Array.isArray(folderData) || folderData.length === 0) {
-    const existingFolders = new Set(["Chưa phân loại", ...appData.map(s => s.folder).filter(Boolean)]);
-    folderData = Array.from(existingFolders);
-    localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
+let folderData = normalizeFolderData(rawFolderData);
+if (!folderData || folderData.length === 0) {
+    const existingFolderNames = new Set(["Chưa phân loại", ...appData.map(s => s.folder).filter(Boolean)]);
+    folderData = normalizeFolderData(Array.from(existingFolderNames));
 }
+localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
 
 function saveAppData() {
     localStorage.setItem('toeicAppData', JSON.stringify(appData));
@@ -90,12 +144,25 @@ function saveFolderData() {
     localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
 }
 
+function getFolderMeta(folderName) {
+    const target = folderName || 'Chưa phân loại';
+    const found = folderData.find(f => f.name === target);
+    if (found) return found;
+    return { name: target, color: '#64748b', icon: '📁' };
+}
+
 // Current App View State
 let currentView = 'library'; // 'library', 'detail', 'test'
 let currentLibraryTab = 'sets'; // 'sets', 'folders'
+let currentOpenedFolder = null; // null if browsing all folders, or string folderName when inside a folder
 let currentSetIndex = 0;
 let currentSetTab = 'study'; // 'study', 'manage', 'list'
 let isAutoSpeakEnabled = true;
+
+// Folder Modal State
+let folderModalEditingName = null; // null = create new, string = editing target
+let folderModalSelectedIcon = '📁';
+let folderModalSelectedColor = '#3b82f6';
 
 // Active Test State
 let activeTestState = {
@@ -186,13 +253,23 @@ function renderLibrary() {
     const currentSelectedFilter = folderFilterSelect.value;
     folderFilterSelect.innerHTML = '<option value="">Tất cả thư mục</option>';
     folderData.forEach(folder => {
-        folderFilterSelect.innerHTML += `<option value="${escapeHtml(folder)}" ${currentSelectedFilter === folder ? 'selected' : ''}>${escapeHtml(folder)}</option>`;
+        const fName = typeof folder === 'string' ? folder : folder.name;
+        const fIcon = typeof folder === 'string' ? '📁' : (folder.icon || '📁');
+        folderFilterSelect.innerHTML += `<option value="${escapeHtml(fName)}" ${currentSelectedFilter === fName ? 'selected' : ''}>${fIcon} ${escapeHtml(fName)}</option>`;
     });
 
     if (currentLibraryTab === 'sets') {
         renderSetsCards();
     } else {
-        renderFoldersCards();
+        if (currentOpenedFolder) {
+            document.getElementById('foldersOverview').style.display = 'none';
+            document.getElementById('folderContentsView').style.display = 'block';
+            renderFolderContentsView();
+        } else {
+            document.getElementById('foldersOverview').style.display = 'block';
+            document.getElementById('folderContentsView').style.display = 'none';
+            renderFoldersCards();
+        }
     }
 }
 
@@ -221,13 +298,16 @@ function renderSetsCards() {
 
     filtered.forEach(({ set, originalIndex }) => {
         const folderName = set.folder || 'Chưa phân loại';
+        const fMeta = getFolderMeta(folderName);
         const card = document.createElement('div');
         card.className = 'set-card';
         card.onclick = () => openSet(originalIndex);
         card.innerHTML = `
             <div>
                 <div class="set-card-meta">
-                    <span class="set-card-folder">📁 ${escapeHtml(folderName)}</span>
+                    <span class="set-card-folder" style="color: ${fMeta.color}; background: ${fMeta.color}15; border: 1px solid ${fMeta.color}35;">
+                        ${fMeta.icon} ${escapeHtml(folderName)}
+                    </span>
                 </div>
                 <h3 class="set-card-title">${escapeHtml(set.title)}</h3>
             </div>
@@ -247,50 +327,460 @@ window.filterSets = function() {
     renderSetsCards();
 };
 
+// ==========================================
+// FOLDERS OVERVIEW (LIST OF ALL FOLDERS)
+// ==========================================
 function renderFoldersCards() {
     const foldersList = document.getElementById('foldersList');
+    const emptyState = document.getElementById('emptyFoldersState');
+    const searchQuery = (document.getElementById('folderSearchInput')?.value || '').trim().toLowerCase();
     foldersList.innerHTML = '';
 
-    folderData.forEach(folderName => {
-        const setsInFolder = appData.filter(s => s.folder === folderName);
+    const filtered = folderData.filter(folder => {
+        return !searchQuery || folder.name.toLowerCase().includes(searchQuery);
+    });
+
+    if (filtered.length === 0) {
+        foldersList.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+
+    foldersList.style.display = 'grid';
+    if (emptyState) emptyState.style.display = 'none';
+
+    filtered.forEach(folder => {
+        const setsInFolder = appData.filter(s => s.folder === folder.name);
         const totalWords = setsInFolder.reduce((sum, s) => sum + s.words.length, 0);
 
         const folderCard = document.createElement('div');
         folderCard.className = 'folder-card';
+        folderCard.style.setProperty('--folder-accent', folder.color);
+        folderCard.style.setProperty('--folder-icon-bg', `${folder.color}18`);
+        folderCard.style.setProperty('--folder-icon-border', `${folder.color}35`);
+
+        // Clicking card opens the folder explorer view (like Windows Explorer!)
+        folderCard.onclick = () => openFolderContents(folder.name);
+
         folderCard.innerHTML = `
             <div>
                 <div class="folder-card-header">
-                    <div class="folder-icon">📁</div>
-                    <div>
-                        <div class="folder-name">${escapeHtml(folderName)}</div>
-                        <div class="folder-count-badge">${setsInFolder.length} học phần • ${totalWords} từ</div>
+                    <div class="folder-icon">${folder.icon || '📁'}</div>
+                    <div style="flex: 1; min-width: 0;">
+                        <div class="folder-name" title="${escapeHtml(folder.name)}">
+                            ${escapeHtml(folder.name)}
+                        </div>
+                        <div class="folder-count-badge">${setsInFolder.length} học phần • ${totalWords} từ vựng</div>
                     </div>
                 </div>
             </div>
             <div class="folder-card-footer">
-                ${folderName !== 'Chưa phân loại' ? `
-                    <button class="btn btn-ghost btn-sm" onclick="deleteFolder('${escapeHtml(folderName)}')" style="color: var(--danger);">
-                        🗑️ Xóa thư mục
+                <span class="folder-open-hint">
+                    Mở thư mục ➔
+                </span>
+                <div style="display: flex; gap: 6px;" onclick="event.stopPropagation();">
+                    <button class="btn btn-outline btn-sm" onclick="openEditFolderModal('${escapeJsString(folder.name)}')" title="Đổi tên, màu sắc, biểu tượng">
+                        ✏️ Sửa
                     </button>
-                ` : '<div></div>'}
-                <button class="btn btn-secondary btn-sm" onclick="openFolderManageModal('${escapeHtml(folderName)}')">
-                    ⚙️ Thêm học phần
-                </button>
+                    <button class="btn btn-secondary btn-sm" onclick="openFolderManageModal('${escapeJsString(folder.name)}')" title="Thêm học phần vào thư mục này">
+                        ⚙️ Thêm
+                    </button>
+                    ${folder.name !== 'Chưa phân loại' ? `
+                        <button class="btn btn-ghost btn-sm" onclick="deleteFolder('${escapeJsString(folder.name)}')" style="color: var(--danger);" title="Xóa thư mục">
+                            🗑️
+                        </button>
+                    ` : ''}
+                </div>
             </div>
         `;
         foldersList.appendChild(folderCard);
     });
 }
 
-// Set & Folder Creation Modals / Prompts
+window.filterFolders = function() {
+    renderFoldersCards();
+};
+
+// ==========================================
+// FOLDER CONTENTS EXPLORER (WINDOWS STYLE)
+// ==========================================
+window.openFolderContents = function(folderName) {
+    currentOpenedFolder = folderName;
+    document.getElementById('foldersOverview').style.display = 'none';
+    document.getElementById('folderContentsView').style.display = 'block';
+
+    // Clear inner search
+    const innerSearch = document.getElementById('folderInnerSearchInput');
+    if (innerSearch) innerSearch.value = '';
+
+    renderFolderContentsView();
+};
+
+window.closeFolderContents = function() {
+    currentOpenedFolder = null;
+    document.getElementById('foldersOverview').style.display = 'block';
+    document.getElementById('folderContentsView').style.display = 'none';
+    renderFoldersCards();
+};
+
+function renderFolderContentsView() {
+    if (!currentOpenedFolder) {
+        closeFolderContents();
+        return;
+    }
+
+    const folder = getFolderMeta(currentOpenedFolder);
+
+    // 1. Update Breadcrumb
+    document.getElementById('explorerFolderIcon').textContent = folder.icon;
+    document.getElementById('explorerFolderName').textContent = folder.name;
+
+    // 2. Update Banner Card
+    const banner = document.getElementById('folderExplorerBanner');
+    banner.style.setProperty('--folder-accent', folder.color);
+    banner.style.setProperty('--folder-icon-bg', `${folder.color}20`);
+    banner.style.setProperty('--folder-icon-border', `${folder.color}45`);
+
+    const bannerIcon = document.getElementById('folderBannerIcon');
+    bannerIcon.textContent = folder.icon;
+    bannerIcon.style.color = folder.color;
+
+    document.getElementById('folderBannerTitle').textContent = folder.name;
+
+    // Delete button inside banner (hidden if Chưa phân loại)
+    const deleteBannerBtn = document.getElementById('btnDeleteFolderInBanner');
+    if (deleteBannerBtn) {
+        deleteBannerBtn.style.display = folder.name === 'Chưa phân loại' ? 'none' : 'inline-flex';
+    }
+
+    // 3. Find sets inside this folder
+    const allSetsInFolder = [];
+    appData.forEach((set, originalIndex) => {
+        if (set.folder === folder.name) {
+            allSetsInFolder.push({ set, originalIndex });
+        }
+    });
+
+    const totalWords = allSetsInFolder.reduce((sum, item) => sum + item.set.words.length, 0);
+    document.getElementById('folderBannerSetCount').textContent = `${allSetsInFolder.length} học phần`;
+    document.getElementById('folderBannerWordCount').textContent = `${totalWords} từ vựng`;
+
+    // 4. Filter by inner search
+    const searchQuery = (document.getElementById('folderInnerSearchInput')?.value || '').trim().toLowerCase();
+    const filteredSets = allSetsInFolder.filter(item => {
+        return !searchQuery || item.set.title.toLowerCase().includes(searchQuery);
+    });
+
+    const countBadge = document.getElementById('folderInnerCountBadge');
+    if (countBadge) {
+        countBadge.textContent = `${filteredSets.length} học phần`;
+    }
+
+    const setsGrid = document.getElementById('folderSetsList');
+    const emptyState = document.getElementById('folderSetsEmptyState');
+    setsGrid.innerHTML = '';
+
+    if (filteredSets.length === 0) {
+        setsGrid.style.display = 'none';
+        emptyState.style.display = 'block';
+        document.getElementById('folderEmptyIcon').textContent = folder.icon || '📂';
+        return;
+    }
+
+    setsGrid.style.display = 'grid';
+    emptyState.style.display = 'none';
+
+    filteredSets.forEach(({ set, originalIndex }) => {
+        const card = document.createElement('div');
+        card.className = 'set-card';
+        card.onclick = () => openSet(originalIndex);
+        card.innerHTML = `
+            <div>
+                <div class="set-card-meta">
+                    <span class="set-card-folder" style="color: ${folder.color}; background: ${folder.color}15; border: 1px solid ${folder.color}35;">
+                        ${folder.icon} ${escapeHtml(folder.name)}
+                    </span>
+                </div>
+                <h3 class="set-card-title">${escapeHtml(set.title)}</h3>
+            </div>
+            <div class="set-card-footer">
+                <span class="set-card-count">📚 <strong>${set.words.length}</strong> thuật ngữ</span>
+                <div class="set-card-actions">
+                    <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditSetModal(${originalIndex})" title="Đổi tên / Chuyển thư mục">Sửa</button>
+                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); removeSetFromFolder(${originalIndex})" title="Gỡ khỏi thư mục này">Gỡ</button>
+                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openDeleteSetModal(${originalIndex})" title="Xóa học phần" style="color: var(--danger);">Xóa</button>
+                </div>
+            </div>
+        `;
+        setsGrid.appendChild(card);
+    });
+}
+
+window.filterInnerFolderSets = function() {
+    renderFolderContentsView();
+};
+
+window.createNewSetInCurrentFolder = function() {
+    const defaultTitle = `VOCABULARY #${appData.length + 1}`;
+    const title = prompt(`Tạo học phần mới trong thư mục [${currentOpenedFolder}]:\nNhập tên học phần:`, defaultTitle);
+    if (title && title.trim() !== '') {
+        const newSet = {
+            title: title.trim(),
+            folder: currentOpenedFolder,
+            words: []
+        };
+        appData.push(newSet);
+        saveAppData();
+        openSet(appData.length - 1);
+    }
+};
+
+window.removeSetFromFolder = function(setIndex) {
+    if (confirm(`Gỡ học phần "${appData[setIndex].title}" khỏi thư mục "${currentOpenedFolder}"? (Học phần sẽ được chuyển về "Chưa phân loại")`)) {
+        appData[setIndex].folder = 'Chưa phân loại';
+        saveAppData();
+        renderFolderContentsView();
+    }
+};
+
+window.testCurrentFolderSets = function() {
+    const indicesInFolder = [];
+    appData.forEach((set, index) => {
+        if (set.folder === currentOpenedFolder && set.words.length > 0) {
+            indicesInFolder.push(index);
+        }
+    });
+
+    if (indicesInFolder.length === 0) {
+        alert(`Thư mục "${currentOpenedFolder}" chưa có từ vựng nào để kiểm tra!`);
+        return;
+    }
+
+    activeTestState.selectedSetIndices = indicesInFolder;
+    navigateTo('test');
+};
+
+window.openEditCurrentFolderModal = function() {
+    if (currentOpenedFolder) {
+        openEditFolderModal(currentOpenedFolder);
+    }
+};
+
+window.deleteCurrentFolder = function() {
+    if (currentOpenedFolder) {
+        deleteFolder(currentOpenedFolder);
+    }
+};
+
+// ==========================================
+// FOLDER CREATION & EDIT MODAL LOGIC
+// ==========================================
+window.openCreateFolderModal = function() {
+    folderModalEditingName = null;
+    folderModalSelectedIcon = '📁';
+    folderModalSelectedColor = '#3b82f6';
+
+    document.getElementById('folderModalTitle').textContent = '📁 Tạo thư mục mới';
+    document.getElementById('folderModalNameInput').value = '';
+    document.getElementById('folderCustomIconInput').value = '';
+    document.getElementById('folderCustomColorInput').value = '#3b82f6';
+    document.getElementById('btnSaveFolderModal').textContent = 'Tạo thư mục';
+
+    renderFolderModalControls();
+    updateFolderModalPreview();
+    document.getElementById('editFolderModal').style.display = 'flex';
+    document.getElementById('folderModalNameInput').focus();
+};
+
+window.openEditFolderModal = function(folderName) {
+    folderModalEditingName = folderName;
+    const meta = getFolderMeta(folderName);
+    folderModalSelectedIcon = meta.icon || '📁';
+    folderModalSelectedColor = meta.color || '#3b82f6';
+
+    document.getElementById('folderModalTitle').textContent = `✏️ Chỉnh sửa thư mục: ${folderName}`;
+    document.getElementById('folderModalNameInput').value = folderName;
+    document.getElementById('folderCustomIconInput').value = PRESET_FOLDER_ICONS.includes(meta.icon) ? '' : meta.icon;
+    document.getElementById('folderCustomColorInput').value = meta.color || '#3b82f6';
+    document.getElementById('btnSaveFolderModal').textContent = 'Lưu thay đổi';
+
+    renderFolderModalControls();
+    updateFolderModalPreview();
+    document.getElementById('editFolderModal').style.display = 'flex';
+    document.getElementById('folderModalNameInput').focus();
+};
+
+window.closeFolderEditModal = function() {
+    document.getElementById('editFolderModal').style.display = 'none';
+    folderModalEditingName = null;
+};
+
+function renderFolderModalControls() {
+    // 1. Render Icon Grid
+    const iconGrid = document.getElementById('folderIconGrid');
+    iconGrid.innerHTML = '';
+    PRESET_FOLDER_ICONS.forEach(icon => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `icon-item-btn ${icon === folderModalSelectedIcon ? 'selected' : ''}`;
+        btn.textContent = icon;
+        btn.onclick = () => selectFolderModalIcon(icon);
+        iconGrid.appendChild(btn);
+    });
+
+    // 2. Render Color Swatches
+    const colorGrid = document.getElementById('folderColorSwatches');
+    colorGrid.innerHTML = '';
+    PRESET_FOLDER_COLORS.forEach(c => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `color-swatch-btn ${c.hex.toLowerCase() === folderModalSelectedColor.toLowerCase() ? 'selected' : ''}`;
+        btn.style.backgroundColor = c.hex;
+        btn.title = c.name;
+        btn.textContent = c.hex.toLowerCase() === folderModalSelectedColor.toLowerCase() ? '✓' : '';
+        btn.onclick = () => selectFolderModalColor(c.hex);
+        colorGrid.appendChild(btn);
+    });
+}
+
+window.selectFolderModalIcon = function(icon) {
+    folderModalSelectedIcon = icon;
+    document.getElementById('folderCustomIconInput').value = '';
+    renderFolderModalControls();
+    updateFolderModalPreview();
+};
+
+window.handleCustomIconInput = function(val) {
+    const clean = val.trim();
+    if (clean) {
+        folderModalSelectedIcon = clean;
+    } else {
+        folderModalSelectedIcon = '📁';
+    }
+    renderFolderModalControls();
+    updateFolderModalPreview();
+};
+
+window.selectFolderModalColor = function(hex) {
+    folderModalSelectedColor = hex;
+    document.getElementById('folderCustomColorInput').value = hex;
+    renderFolderModalControls();
+    updateFolderModalPreview();
+};
+
+window.handleCustomColorChange = function(hex) {
+    folderModalSelectedColor = hex;
+    renderFolderModalControls();
+    updateFolderModalPreview();
+};
+
+window.updateFolderModalPreview = function() {
+    const inputName = document.getElementById('folderModalNameInput').value.trim() || 'Tên thư mục';
+    document.getElementById('folderPreviewName').textContent = inputName;
+    document.getElementById('folderPreviewIcon').textContent = folderModalSelectedIcon;
+
+    const previewCard = document.getElementById('folderModalPreviewCard');
+    previewCard.style.setProperty('--folder-preview-accent', folderModalSelectedColor);
+
+    const previewIcon = document.getElementById('folderPreviewIcon');
+    previewIcon.style.backgroundColor = `${folderModalSelectedColor}18`;
+    previewIcon.style.borderColor = `${folderModalSelectedColor}35`;
+    previewIcon.style.color = folderModalSelectedColor;
+
+    // Count info
+    let countText = '0 học phần • 0 từ';
+    if (folderModalEditingName) {
+        const setsCount = appData.filter(s => s.folder === folderModalEditingName).length;
+        const wordsCount = appData.filter(s => s.folder === folderModalEditingName).reduce((sum, s) => sum + s.words.length, 0);
+        countText = `${setsCount} học phần • ${wordsCount} từ`;
+    }
+    document.getElementById('folderPreviewMeta').textContent = countText;
+};
+
+window.saveFolderModalData = function() {
+    const nameInput = document.getElementById('folderModalNameInput');
+    const newName = nameInput.value.trim();
+
+    if (!newName) {
+        alert("Vui lòng nhập tên thư mục!");
+        nameInput.focus();
+        return;
+    }
+
+    // CREATE MODE
+    if (folderModalEditingName === null) {
+        if (folderData.some(f => f.name.toLowerCase() === newName.toLowerCase())) {
+            alert(`Thư mục "${newName}" đã tồn tại! Vui lòng chọn tên khác.`);
+            nameInput.focus();
+            return;
+        }
+
+        folderData.push({
+            name: newName,
+            color: folderModalSelectedColor,
+            icon: folderModalSelectedIcon
+        });
+        saveFolderData();
+        closeFolderEditModal();
+        renderLibrary();
+        return;
+    }
+
+    // EDIT MODE
+    const oldName = folderModalEditingName;
+    const isNameChanged = oldName.toLowerCase() !== newName.toLowerCase();
+
+    if (isNameChanged && folderData.some(f => f.name.toLowerCase() === newName.toLowerCase())) {
+        alert(`Tên thư mục "${newName}" đã tồn tại! Vui lòng chọn tên khác.`);
+        nameInput.focus();
+        return;
+    }
+
+    // Prevent renaming "Chưa phân loại" to something else if preferred
+    if (oldName === 'Chưa phân loại' && isNameChanged) {
+        alert('Không thể đổi tên thư mục mặc định "Chưa phân loại", nhưng bạn có thể đổi màu sắc và biểu tượng.');
+        return;
+    }
+
+    // Update folder object in folderData
+    const folderObj = folderData.find(f => f.name === oldName);
+    if (folderObj) {
+        folderObj.name = newName;
+        folderObj.color = folderModalSelectedColor;
+        folderObj.icon = folderModalSelectedIcon;
+    }
+
+    // If name changed, update all sets in appData!
+    if (isNameChanged) {
+        appData.forEach(set => {
+            if (set.folder === oldName) {
+                set.folder = newName;
+            }
+        });
+        saveAppData();
+
+        if (currentOpenedFolder === oldName) {
+            currentOpenedFolder = newName;
+        }
+    }
+
+    saveFolderData();
+    closeFolderEditModal();
+    renderLibrary();
+};
+
+window.createNewFolder = function() {
+    openCreateFolderModal();
+};
+
 window.createNewSet = function() {
     const title = prompt("Nhập tên học phần mới:", "VOCABULARY TOEIC #" + (appData.length + 1));
     if (title && title.trim() !== '') {
-        const folder = prompt("Nhập thư mục để lưu (để trống nếu 'Chưa phân loại'):", "Chưa phân loại");
+        const folder = prompt("Nhập thư mục để lưu (để trống nếu 'Chưa phân loại'):", currentOpenedFolder || "Chưa phân loại");
         const cleanFolder = folder && folder.trim() ? folder.trim() : "Chưa phân loại";
 
-        if (!folderData.includes(cleanFolder)) {
-            folderData.push(cleanFolder);
+        if (!folderData.some(f => f.name === cleanFolder)) {
+            folderData.push({ name: cleanFolder, color: '#3b82f6', icon: '📁' });
             saveFolderData();
         }
 
@@ -306,21 +796,12 @@ window.createNewSet = function() {
     }
 };
 
-window.createNewFolder = function() {
-    const folderName = prompt("Nhập tên thư mục mới:");
-    if (folderName && folderName.trim() !== '') {
-        const cleanName = folderName.trim();
-        if (folderData.includes(cleanName)) {
-            alert("Thư mục này đã tồn tại!");
-            return;
-        }
-        folderData.push(cleanName);
-        saveFolderData();
-        renderLibrary();
-    }
-};
-
 window.deleteFolder = function(folderName) {
+    if (folderName === 'Chưa phân loại') {
+        alert('Không thể xóa thư mục mặc định "Chưa phân loại".');
+        return;
+    }
+
     if (confirm(`Bạn có chắc muốn xóa thư mục "${folderName}" không?\n\nLưu ý: Các học phần bên trong sẽ được chuyển về "Chưa phân loại" chứ KHÔNG bị xóa.`)) {
         appData.forEach(set => {
             if (set.folder === folderName) {
@@ -329,9 +810,14 @@ window.deleteFolder = function(folderName) {
         });
         saveAppData();
 
-        folderData = folderData.filter(name => name !== folderName);
+        folderData = folderData.filter(f => f.name !== folderName);
         saveFolderData();
-        renderLibrary();
+
+        if (currentOpenedFolder === folderName) {
+            closeFolderContents();
+        } else {
+            renderLibrary();
+        }
     }
 };
 
@@ -342,7 +828,8 @@ let targetFolderForModal = '';
 
 window.openFolderManageModal = function(folderName) {
     targetFolderForModal = folderName;
-    document.getElementById('folderManageTitle').textContent = `📁 Thư mục: ${folderName}`;
+    const meta = getFolderMeta(folderName);
+    document.getElementById('folderManageTitle').innerHTML = `${meta.icon} Quản lý thư mục: ${escapeHtml(folderName)}`;
     document.getElementById('folderManageModal').style.display = 'flex';
     renderFolderSetsSelection();
 };
@@ -397,6 +884,13 @@ window.openSet = function(index) {
     switchSetTab('study');
 };
 
+window.goBackFromSetDetail = function() {
+    navigateTo('library');
+    if (currentOpenedFolder) {
+        switchLibraryTab('folders');
+    }
+};
+
 function renderSetDetail() {
     const set = appData[currentSetIndex];
     if (!set) {
@@ -404,8 +898,11 @@ function renderSetDetail() {
         return;
     }
 
+    const fMeta = getFolderMeta(set.folder);
     document.getElementById('detailSetTitle').textContent = set.title;
-    document.getElementById('detailSetFolder').textContent = `📁 ${set.folder || 'Chưa phân loại'}`;
+    const detailFolderEl = document.getElementById('detailSetFolder');
+    detailFolderEl.textContent = `${fMeta.icon} ${set.folder || 'Chưa phân loại'}`;
+    detailFolderEl.style.color = fMeta.color;
     document.getElementById('detailWordCount').textContent = `${set.words.length} thuật ngữ`;
     document.getElementById('setListWordCount').textContent = set.words.length;
 
@@ -1505,7 +2002,9 @@ window.openEditSetModal = function(index) {
     const folderSelect = document.getElementById('editSetFolderSelect');
     folderSelect.innerHTML = '';
     folderData.forEach(folder => {
-        folderSelect.innerHTML += `<option value="${escapeHtml(folder)}" ${set.folder === folder ? 'selected' : ''}>${escapeHtml(folder)}</option>`;
+        const fName = typeof folder === 'string' ? folder : folder.name;
+        const fIcon = typeof folder === 'string' ? '📁' : (folder.icon || '📁');
+        folderSelect.innerHTML += `<option value="${escapeHtml(fName)}" ${set.folder === fName ? 'selected' : ''}>${fIcon} ${escapeHtml(fName)}</option>`;
     });
 
     document.getElementById('editSetModal').style.display = 'flex';
@@ -1570,8 +2069,14 @@ window.loadPresetSampleData = function() {
     if (confirm("Nạp thêm 3 bộ từ vựng mẫu TOEIC chuẩn vào danh sách học phần của bạn?")) {
         SAMPLE_PRESETS.forEach(preset => {
             appData.push(JSON.parse(JSON.stringify(preset)));
-            if (!folderData.includes(preset.folder)) {
-                folderData.push(preset.folder);
+            if (!folderData.some(f => f.name === preset.folder)) {
+                let color = '#3b82f6';
+                let icon = '📚';
+                if (preset.folder.includes('công sở') || preset.folder.includes('Văn phòng')) {
+                    color = '#10b981';
+                    icon = '💼';
+                }
+                folderData.push({ name: preset.folder, color, icon });
             }
         });
         saveAppData();
@@ -1608,7 +2113,7 @@ window.importAllDataJson = function(event) {
             const data = JSON.parse(e.target.result);
             if (data.appData && Array.isArray(data.appData)) {
                 appData = data.appData;
-                folderData = data.folderData || ["Chưa phân loại"];
+                folderData = normalizeFolderData(data.folderData || ["Chưa phân loại"]);
                 saveAppData();
                 saveFolderData();
                 renderLibrary();
