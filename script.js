@@ -204,6 +204,23 @@ function updateThemeIcon(theme) {
     }
 }
 
+// --- NAVIGATION & VIEW STATE PERSISTENCE ---
+function saveNavState() {
+    try {
+        const state = {
+            currentView,
+            currentLibraryTab,
+            currentOpenedFolder,
+            currentSetIndex,
+            currentSetTab,
+            isAutoSpeakEnabled
+        };
+        localStorage.setItem('toeicNavState', JSON.stringify(state));
+    } catch (e) {
+        console.warn('Could not save nav state:', e);
+    }
+}
+
 window.navigateTo = function(viewName) {
     currentView = viewName;
     
@@ -229,6 +246,8 @@ window.navigateTo = function(viewName) {
         document.getElementById('testView').style.display = 'flex';
         initTestSetup();
     }
+
+    saveNavState();
 };
 
 // ==========================================================================
@@ -244,6 +263,7 @@ window.switchLibraryTab = function(tabName) {
     document.getElementById('foldersContainer').style.display = tabName === 'folders' ? 'block' : 'none';
 
     renderLibrary();
+    saveNavState();
 };
 
 function renderLibrary() {
@@ -417,6 +437,7 @@ window.openFolderContents = function(folderName) {
     if (innerSearch) innerSearch.value = '';
 
     renderFolderContentsView();
+    saveNavState();
 };
 
 window.closeFolderContents = function() {
@@ -424,6 +445,7 @@ window.closeFolderContents = function() {
     document.getElementById('foldersOverview').style.display = 'block';
     document.getElementById('folderContentsView').style.display = 'none';
     renderFoldersCards();
+    saveNavState();
 };
 
 function renderFolderContentsView() {
@@ -1377,8 +1399,10 @@ window.toggleSetFolderMembership = function(index) {
 
 window.openSet = function(index) {
     currentSetIndex = index;
+    currentSetTab = 'study';
     navigateTo('detail');
     switchSetTab('study');
+    saveNavState();
 };
 
 window.goBackFromSetDetail = function() {
@@ -1386,6 +1410,7 @@ window.goBackFromSetDetail = function() {
     if (currentOpenedFolder) {
         switchLibraryTab('folders');
     }
+    saveNavState();
 };
 
 function renderSetDetail() {
@@ -1423,7 +1448,71 @@ window.switchSetTab = function(tabName) {
     document.getElementById('setListSection').style.display = tabName === 'list' ? 'block' : 'none';
 
     renderSetDetail();
+    saveNavState();
 };
+
+// --- STUDY ANSWERS PERSISTENCE (LOCALSTORAGE & MIGRATION) ---
+function getStudyStorageKey(index) {
+    const set = appData[index];
+    if (set && set.title) {
+        const safeTitle = (set.title || '').replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]/g, '_').slice(0, 40);
+        return `toeic_study_answers_${index}_${safeTitle}`;
+    }
+    return `studyAnswers_${index}`;
+}
+
+function loadStudyAnswers(index) {
+    const primaryKey = getStudyStorageKey(index);
+    const legacyKey = `studyAnswers_${index}`;
+    
+    let raw = localStorage.getItem(primaryKey);
+    if (!raw) {
+        raw = localStorage.getItem(legacyKey);
+    }
+    // Backward compatibility: import legacy answers from sessionStorage if found
+    if (!raw) {
+        try {
+            raw = sessionStorage.getItem(legacyKey);
+            if (raw) {
+                localStorage.setItem(primaryKey, raw);
+                localStorage.setItem(legacyKey, raw);
+            }
+        } catch (e) {}
+    }
+    
+    if (raw) {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+            console.warn('Failed to parse saved study answers:', e);
+        }
+    }
+    return [];
+}
+
+function saveStudyAnswers(index, answersArray) {
+    const primaryKey = getStudyStorageKey(index);
+    const legacyKey = `studyAnswers_${index}`;
+    const serialized = JSON.stringify(answersArray);
+    try {
+        localStorage.setItem(primaryKey, serialized);
+        localStorage.setItem(legacyKey, serialized);
+        sessionStorage.setItem(legacyKey, serialized);
+    } catch (e) {
+        console.warn('Failed to save study answers:', e);
+    }
+}
+
+function clearStudyAnswersForSet(index) {
+    const primaryKey = getStudyStorageKey(index);
+    const legacyKey = `studyAnswers_${index}`;
+    try {
+        localStorage.removeItem(primaryKey);
+        localStorage.removeItem(legacyKey);
+        sessionStorage.removeItem(legacyKey);
+    } catch (e) {}
+}
 
 // --- STUDY TAB (TABLE TYPING PRACTICE) ---
 function renderStudyTable() {
@@ -1439,7 +1528,7 @@ function renderStudyTable() {
         return;
     }
 
-    const savedAnswers = JSON.parse(sessionStorage.getItem(`studyAnswers_${currentSetIndex}`)) || [];
+    const savedAnswers = loadStudyAnswers(currentSetIndex);
 
     set.words.forEach((item, index) => {
         const oldAns = savedAnswers[index] || '';
@@ -1467,6 +1556,8 @@ function renderStudyTable() {
 
 function checkStudyScore(input, index) {
     const set = appData[currentSetIndex];
+    if (!set || !set.words[index]) return;
+
     const userAnswer = input.value.trim().toLowerCase();
     const correctAnswer = (set.words[index]?.vie || '').trim().toLowerCase();
     const resultCell = document.querySelector(`.result-cell[data-result-for="${index}"]`);
@@ -1491,8 +1582,10 @@ function checkStudyScore(input, index) {
 function setupStudyEvents() {
     const inputs = document.querySelectorAll('#vocabTable .answer-input');
     const set = appData[currentSetIndex];
+    if (!set) return;
 
     inputs.forEach((input, index) => {
+        // Automatically check and display score/badge for pre-filled or restored answers
         if (input.value.trim() !== '') {
             checkStudyScore(input, index);
         }
@@ -1503,15 +1596,23 @@ function setupStudyEvents() {
             }
         });
 
+        // Real-time autosave on typing or paste - NO ENTER REQUIRED to persist
+        input.addEventListener('input', () => {
+            checkStudyScore(input, index);
+            const saved = loadStudyAnswers(currentSetIndex);
+            saved[index] = input.value;
+            saveStudyAnswers(currentSetIndex, saved);
+        });
+
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
                 e.preventDefault();
                 speakWord(set.words[index].eng);
             } else if (e.key === 'Enter') {
                 checkStudyScore(input, index);
-                let saved = JSON.parse(sessionStorage.getItem(`studyAnswers_${currentSetIndex}`)) || [];
+                const saved = loadStudyAnswers(currentSetIndex);
                 saved[index] = input.value;
-                sessionStorage.setItem(`studyAnswers_${currentSetIndex}`, JSON.stringify(saved));
+                saveStudyAnswers(currentSetIndex, saved);
 
                 if (index + 1 < inputs.length) {
                     inputs[index + 1].focus();
@@ -1551,7 +1652,7 @@ window.clearStudyAnswers = function() {
         input.classList.remove('input-correct', 'input-wrong');
     });
     document.querySelectorAll('#vocabTable .result-cell').forEach(cell => cell.innerHTML = '');
-    sessionStorage.removeItem(`studyAnswers_${currentSetIndex}`);
+    clearStudyAnswersForSet(currentSetIndex);
     updateStudyStats();
 };
 
@@ -1559,6 +1660,7 @@ window.toggleAutoSpeak = function() {
     isAutoSpeakEnabled = !isAutoSpeakEnabled;
     document.getElementById('speakIcon').textContent = isAutoSpeakEnabled ? '🔊' : '🔇';
     document.getElementById('speakStatusText').textContent = isAutoSpeakEnabled ? 'Tự động đọc: BẬT' : 'Tự động đọc: TẮT';
+    saveNavState();
 };
 
 // --- MANAGEMENT TAB (DIRECT ADD, TXT FILE, BULK PASTE) ---
@@ -2098,11 +2200,19 @@ function setupTestTableEvents() {
     const inputs = document.querySelectorAll('.test-ans-input');
 
     inputs.forEach((input, index) => {
+        if (input.value.trim() !== '') {
+            checkTestQuestionAnswer(input, index);
+        }
+
         input.addEventListener('focus', () => {
             const q = activeTestState.questions[index];
             if (activeTestState.autoSpeak && activeTestState.direction === 'en-vi' && q) {
                 speakWord(q.eng);
             }
+        });
+
+        input.addEventListener('input', () => {
+            checkTestQuestionAnswer(input, index);
         });
 
         input.addEventListener('keydown', (e) => {
@@ -2482,6 +2592,13 @@ window.closeDeleteWordModal = function() {
 
 document.getElementById('btnConfirmDeleteWord').onclick = function() {
     if (wordIdxToDelete > -1) {
+        // Sync saved study answers
+        const saved = loadStudyAnswers(currentSetIndex);
+        if (saved && saved.length > wordIdxToDelete) {
+            saved.splice(wordIdxToDelete, 1);
+            saveStudyAnswers(currentSetIndex, saved);
+        }
+
         appData[currentSetIndex].words.splice(wordIdxToDelete, 1);
         saveAppData();
         renderSetDetail();
@@ -2543,8 +2660,13 @@ window.closeDeleteSetModal = function() {
 
 document.getElementById('btnConfirmDeleteSet').onclick = function() {
     if (setIdxToDelete > -1) {
+        clearStudyAnswersForSet(setIdxToDelete);
         appData.splice(setIdxToDelete, 1);
         saveAppData();
+        if (currentSetIndex >= appData.length) {
+            currentSetIndex = Math.max(0, appData.length - 1);
+        }
+        saveNavState();
         renderLibrary();
         closeDeleteSetModal();
     }
@@ -2714,6 +2836,74 @@ function escapeJsString(str) {
     return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
 
-// Initial Launch
-initTheme();
-renderLibrary();
+// ==========================================================================
+// 9. APP RESTORATION & INITIAL LAUNCH
+// ==========================================================================
+
+function restoreNavState() {
+    initTheme();
+
+    let navState = null;
+    try {
+        const raw = localStorage.getItem('toeicNavState');
+        if (raw) navState = JSON.parse(raw);
+    } catch (e) {
+        navState = null;
+    }
+
+    if (!navState) {
+        renderLibrary();
+        return;
+    }
+
+    // 1. Restore auto-speak state
+    if (typeof navState.isAutoSpeakEnabled === 'boolean') {
+        isAutoSpeakEnabled = navState.isAutoSpeakEnabled;
+        const iconEl = document.getElementById('speakIcon');
+        const textEl = document.getElementById('speakStatusText');
+        if (iconEl && textEl) {
+            iconEl.textContent = isAutoSpeakEnabled ? '🔊' : '🔇';
+            textEl.textContent = isAutoSpeakEnabled ? 'Tự động đọc: BẬT' : 'Tự động đọc: TẮT';
+        }
+    }
+
+    // 2. Restore library sub-tab (sets or folders)
+    if (navState.currentLibraryTab) {
+        currentLibraryTab = navState.currentLibraryTab;
+        const btnSets = document.getElementById('libTabSets');
+        const btnFolders = document.getElementById('libTabFolders');
+        const setsCont = document.getElementById('setsContainer');
+        const foldersCont = document.getElementById('foldersContainer');
+        if (btnSets && btnFolders && setsCont && foldersCont) {
+            btnSets.classList.toggle('active', currentLibraryTab === 'sets');
+            btnFolders.classList.toggle('active', currentLibraryTab === 'folders');
+            setsCont.style.display = currentLibraryTab === 'sets' ? 'block' : 'none';
+            foldersCont.style.display = currentLibraryTab === 'folders' ? 'block' : 'none';
+        }
+    }
+
+    // 3. Restore opened folder explorer if user was inside one
+    if (navState.currentOpenedFolder) {
+        currentOpenedFolder = navState.currentOpenedFolder;
+    }
+
+    // 4. Restore target view
+    if (navState.currentView === 'detail' && typeof navState.currentSetIndex === 'number' && appData[navState.currentSetIndex]) {
+        currentSetIndex = navState.currentSetIndex;
+        currentSetTab = navState.currentSetTab || 'study';
+        navigateTo('detail');
+        switchSetTab(currentSetTab);
+    } else if (navState.currentView === 'test') {
+        navigateTo('test');
+    } else if (navState.currentView === 'createSet') {
+        navigateTo('createSet');
+    } else {
+        navigateTo('library');
+        if (currentOpenedFolder && currentLibraryTab === 'folders') {
+            openFolderContents(currentOpenedFolder);
+        }
+    }
+}
+
+// Initial Launch with State Restoration
+restoreNavState();
