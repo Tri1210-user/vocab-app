@@ -1451,7 +1451,7 @@ window.switchSetTab = function(tabName) {
     saveNavState();
 };
 
-// --- STUDY ANSWERS PERSISTENCE (LOCALSTORAGE & MIGRATION) ---
+// --- STUDY ANSWERS & RESULTS PERSISTENCE (LOCALSTORAGE) ---
 function getStudyStorageKey(index) {
     const set = appData[index];
     if (set && set.title) {
@@ -1459,6 +1459,15 @@ function getStudyStorageKey(index) {
         return `toeic_study_answers_${index}_${safeTitle}`;
     }
     return `studyAnswers_${index}`;
+}
+
+function getStudyResultsKey(index) {
+    const set = appData[index];
+    if (set && set.title) {
+        const safeTitle = (set.title || '').replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]/g, '_').slice(0, 40);
+        return `toeic_study_results_${index}_${safeTitle}`;
+    }
+    return `studyResults_${index}`;
 }
 
 function loadStudyAnswers(index) {
@@ -1504,13 +1513,45 @@ function saveStudyAnswers(index, answersArray) {
     }
 }
 
-function clearStudyAnswersForSet(index) {
-    const primaryKey = getStudyStorageKey(index);
-    const legacyKey = `studyAnswers_${index}`;
+function loadStudyResults(index) {
+    const primaryKey = getStudyResultsKey(index);
+    const legacyKey = `studyResults_${index}`;
+    let raw = localStorage.getItem(primaryKey);
+    if (!raw) raw = localStorage.getItem(legacyKey);
+    if (raw) {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+            console.warn('Failed to parse saved study results:', e);
+        }
+    }
+    return [];
+}
+
+function saveStudyResults(index, resultsArray) {
+    const primaryKey = getStudyResultsKey(index);
+    const legacyKey = `studyResults_${index}`;
+    const serialized = JSON.stringify(resultsArray);
     try {
-        localStorage.removeItem(primaryKey);
-        localStorage.removeItem(legacyKey);
-        sessionStorage.removeItem(legacyKey);
+        localStorage.setItem(primaryKey, serialized);
+        localStorage.setItem(legacyKey, serialized);
+    } catch (e) {
+        console.warn('Failed to save study results:', e);
+    }
+}
+
+function clearStudyAnswersForSet(index) {
+    const primaryAnsKey = getStudyStorageKey(index);
+    const legacyAnsKey = `studyAnswers_${index}`;
+    const primaryResKey = getStudyResultsKey(index);
+    const legacyResKey = `studyResults_${index}`;
+    try {
+        localStorage.removeItem(primaryAnsKey);
+        localStorage.removeItem(legacyAnsKey);
+        localStorage.removeItem(primaryResKey);
+        localStorage.removeItem(legacyResKey);
+        sessionStorage.removeItem(legacyAnsKey);
     } catch (e) {}
 }
 
@@ -1529,23 +1570,45 @@ function renderStudyTable() {
     }
 
     const savedAnswers = loadStudyAnswers(currentSetIndex);
+    const savedResults = loadStudyResults(currentSetIndex);
 
     set.words.forEach((item, index) => {
         const oldAns = savedAnswers[index] || '';
+        const oldRes = savedResults[index] || null;
+
+        let inputClass = 'answer-input';
+        let resultHtml = '';
+
+        if (oldRes === 'correct') {
+            inputClass += ' input-correct';
+            resultHtml = `<span class="result-correct">✅ Đúng</span>`;
+        } else if (oldRes === 'wrong') {
+            inputClass += ' input-wrong';
+            resultHtml = `<span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(item.vie)})</span>`;
+        } else if (oldRes === 'revealed') {
+            inputClass += ' input-revealed';
+            resultHtml = `<span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(item.vie)})</span>`;
+        } else {
+            // Not submitted yet: show clean hint button if user wants to see answer without typing
+            resultHtml = `<button class="btn-show-hint" onclick="revealStudyAnswer(${index})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+        }
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="color: var(--text-muted); font-weight: 600;">${index + 1}</td>
             <td>
                 <span class="word-prompt">
                     ${escapeHtml(item.eng)}
-                    <button class="speak-icon-btn" onclick="speakWord('${escapeJsString(item.eng)}')" title="Nghe phát âm">🔊</button>
+                    <button class="speak-icon-btn" onclick="speakWord('${escapeJsString(item.eng)}')" title="Nghe phát âm (hoặc bấm Tab)">🔊</button>
                 </span>
             </td>
             <td><span class="type-badge">${escapeHtml(item.type || '-')}</span></td>
             <td>
-                <input type="text" class="answer-input" placeholder="Gõ nghĩa tiếng Việt rồi Enter..." value="${escapeHtml(oldAns)}" data-index="${index}">
+                <input type="text" class="${inputClass}" placeholder="Gõ nghĩa rồi Enter... (F2: xem đáp án)" value="${escapeHtml(oldAns)}" data-index="${index}">
             </td>
-            <td class="result-cell" data-result-for="${index}"></td>
+            <td class="result-cell" data-result-for="${index}">
+                ${resultHtml}
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -1562,22 +1625,63 @@ function checkStudyScore(input, index) {
     const correctAnswer = (set.words[index]?.vie || '').trim().toLowerCase();
     const resultCell = document.querySelector(`.result-cell[data-result-for="${index}"]`);
 
-    if (!resultCell) return;
+    const savedAnswers = loadStudyAnswers(currentSetIndex);
+    const savedResults = loadStudyResults(currentSetIndex);
+
+    savedAnswers[index] = input.value;
 
     if (userAnswer === '') {
-        resultCell.innerHTML = '';
-        input.classList.remove('input-correct', 'input-wrong');
+        savedResults[index] = null;
+        if (resultCell) {
+            resultCell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${index})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+        }
+        input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
     } else if (isAnswerFuzzyMatch(userAnswer, correctAnswer)) {
-        resultCell.innerHTML = `<span class="result-correct">✅ Đúng</span>`;
+        savedResults[index] = 'correct';
+        if (resultCell) {
+            resultCell.innerHTML = `<span class="result-correct">✅ Đúng</span>`;
+        }
         input.classList.add('input-correct');
-        input.classList.remove('input-wrong');
+        input.classList.remove('input-wrong', 'input-revealed');
     } else {
-        resultCell.innerHTML = `<span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(set.words[index].vie)})</span>`;
+        savedResults[index] = 'wrong';
+        if (resultCell) {
+            resultCell.innerHTML = `<span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(set.words[index].vie)})</span>`;
+        }
         input.classList.add('input-wrong');
-        input.classList.remove('input-correct');
+        input.classList.remove('input-correct', 'input-revealed');
     }
+
+    saveStudyAnswers(currentSetIndex, savedAnswers);
+    saveStudyResults(currentSetIndex, savedResults);
     updateStudyStats();
 }
+
+window.revealStudyAnswer = function(index) {
+    const set = appData[currentSetIndex];
+    if (!set || !set.words[index]) return;
+
+    const input = document.querySelector(`#vocabTable .answer-input[data-index="${index}"]`);
+    const resultCell = document.querySelector(`.result-cell[data-result-for="${index}"]`);
+
+    const savedAnswers = loadStudyAnswers(currentSetIndex);
+    const savedResults = loadStudyResults(currentSetIndex);
+
+    savedResults[index] = 'revealed';
+    saveStudyResults(currentSetIndex, savedResults);
+
+    if (resultCell) {
+        resultCell.innerHTML = `<span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(set.words[index].vie)})</span>`;
+    }
+
+    if (input) {
+        input.classList.add('input-revealed');
+        input.classList.remove('input-correct', 'input-wrong');
+        input.focus();
+    }
+
+    updateStudyStats();
+};
 
 function setupStudyEvents() {
     const inputs = document.querySelectorAll('#vocabTable .answer-input');
@@ -1585,39 +1689,61 @@ function setupStudyEvents() {
     if (!set) return;
 
     inputs.forEach((input, index) => {
-        // Automatically check and display score/badge for pre-filled or restored answers
-        if (input.value.trim() !== '') {
-            checkStudyScore(input, index);
-        }
-
         input.addEventListener('focus', () => {
             if (isAutoSpeakEnabled && set.words[index]) {
                 speakWord(set.words[index].eng);
             }
         });
 
-        // Real-time autosave on typing or paste - NO ENTER REQUIRED to persist
+        // Real-time autosave text ONLY - NO SCORE CHECK WHILE TYPING to prevent spoiling answers
         input.addEventListener('input', () => {
-            checkStudyScore(input, index);
-            const saved = loadStudyAnswers(currentSetIndex);
-            saved[index] = input.value;
-            saveStudyAnswers(currentSetIndex, saved);
+            const savedAnswers = loadStudyAnswers(currentSetIndex);
+            const savedResults = loadStudyResults(currentSetIndex);
+
+            savedAnswers[index] = input.value;
+            // When user starts modifying, reset previous score evaluation for this row
+            savedResults[index] = null;
+
+            saveStudyAnswers(currentSetIndex, savedAnswers);
+            saveStudyResults(currentSetIndex, savedResults);
+
+            const resultCell = document.querySelector(`.result-cell[data-result-for="${index}"]`);
+            if (resultCell) {
+                resultCell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${index})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+            }
+            input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
+
+            updateStudyStats();
         });
 
         input.addEventListener('keydown', (e) => {
+            // A. Shortcut to reveal answer: F2, Ctrl+Enter, Alt+Enter, or Alt+H
+            if (e.key === 'F2' || ((e.ctrlKey || e.altKey) && e.key === 'Enter') || (e.altKey && (e.key === 'h' || e.key === 'H'))) {
+                e.preventDefault();
+                revealStudyAnswer(index);
+                return;
+            }
+
+            // B. Tab: Pronounce English word
             if (e.key === 'Tab') {
                 e.preventDefault();
                 speakWord(set.words[index].eng);
-            } else if (e.key === 'Enter') {
+                return;
+            }
+
+            // C. Enter: Submit answer & validate ONLY when Enter is pressed
+            if (e.key === 'Enter') {
+                e.preventDefault();
                 checkStudyScore(input, index);
-                const saved = loadStudyAnswers(currentSetIndex);
-                saved[index] = input.value;
-                saveStudyAnswers(currentSetIndex, saved);
 
                 if (index + 1 < inputs.length) {
                     inputs[index + 1].focus();
                 }
-            } else if (e.key === 'ArrowDown') {
+                return;
+            }
+
+            // D. Arrow Up / Down navigation
+            if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 if (index + 1 < inputs.length) inputs[index + 1].focus();
             } else if (e.key === 'ArrowUp') {
@@ -1635,8 +1761,11 @@ function updateStudyStats() {
     let wrong = 0;
 
     document.querySelectorAll('#vocabTable .result-cell').forEach(cell => {
-        if (cell.innerHTML.includes('✅')) correct++;
-        else if (cell.innerHTML.includes('❌')) wrong++;
+        if (cell.querySelector('.result-correct')) {
+            correct++;
+        } else if (cell.querySelector('.result-wrong') || cell.querySelector('.result-revealed')) {
+            wrong++;
+        }
     });
 
     document.getElementById('statTotal').textContent = total;
@@ -1649,9 +1778,11 @@ function updateStudyStats() {
 window.clearStudyAnswers = function() {
     document.querySelectorAll('#vocabTable .answer-input').forEach(input => {
         input.value = '';
-        input.classList.remove('input-correct', 'input-wrong');
+        input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
     });
-    document.querySelectorAll('#vocabTable .result-cell').forEach(cell => cell.innerHTML = '');
+    document.querySelectorAll('#vocabTable .result-cell').forEach((cell, idx) => {
+        cell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${idx})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+    });
     clearStudyAnswersForSet(currentSetIndex);
     updateStudyStats();
 };
@@ -2212,10 +2343,23 @@ function setupTestTableEvents() {
         });
 
         input.addEventListener('input', () => {
-            checkTestQuestionAnswer(input, index);
+            activeTestState.answers[index] = input.value;
+            // Clear any previous evaluation while actively typing
+            activeTestState.results[index] = null;
+            const resultCell = document.querySelector(`.result-cell[data-test-res-idx="${index}"]`);
+            if (resultCell) resultCell.innerHTML = '';
+            input.classList.remove('input-correct', 'input-wrong');
+            updateTestLiveStats();
         });
 
         input.addEventListener('keydown', (e) => {
+            // Shortcut to reveal answer in test: F2, Ctrl+Enter, Alt+Enter
+            if (e.key === 'F2' || ((e.ctrlKey || e.altKey) && e.key === 'Enter')) {
+                e.preventDefault();
+                revealTestQuestionAnswer(index);
+                return;
+            }
+
             if (e.key === 'Tab') {
                 e.preventDefault();
                 const q = activeTestState.questions[index];
@@ -2240,6 +2384,23 @@ function setupTestTableEvents() {
             }
         });
     });
+}
+
+function revealTestQuestionAnswer(index) {
+    const q = activeTestState.questions[index];
+    const input = document.querySelector(`.test-ans-input[data-test-idx="${index}"]`);
+    const resultCell = document.querySelector(`.result-cell[data-test-res-idx="${index}"]`);
+    const expected = activeTestState.direction === 'en-vi' ? q.vie : q.eng;
+
+    activeTestState.results[index] = false;
+    if (resultCell) {
+        resultCell.innerHTML = `<span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(expected)})</span>`;
+    }
+    if (input) {
+        input.classList.add('input-wrong');
+        input.classList.remove('input-correct');
+    }
+    updateTestLiveStats();
 }
 
 function checkTestQuestionAnswer(input, index) {
@@ -2592,11 +2753,16 @@ window.closeDeleteWordModal = function() {
 
 document.getElementById('btnConfirmDeleteWord').onclick = function() {
     if (wordIdxToDelete > -1) {
-        // Sync saved study answers
+        // Sync saved study answers & results
         const saved = loadStudyAnswers(currentSetIndex);
         if (saved && saved.length > wordIdxToDelete) {
             saved.splice(wordIdxToDelete, 1);
             saveStudyAnswers(currentSetIndex, saved);
+        }
+        const results = loadStudyResults(currentSetIndex);
+        if (results && results.length > wordIdxToDelete) {
+            results.splice(wordIdxToDelete, 1);
+            saveStudyResults(currentSetIndex, results);
         }
 
         appData[currentSetIndex].words.splice(wordIdxToDelete, 1);
