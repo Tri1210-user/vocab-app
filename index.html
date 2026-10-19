@@ -404,6 +404,12 @@
                             <span class="stat-label">Chính xác</span>
                             <span id="statPercent" class="stat-val">0%</span>
                         </div>
+                        <div class="stat-divider"></div>
+                        <div class="stat-item text-warning" id="statRemainingWrap" onclick="scrollToNextUnanswered()" title="Bấm để cuộn nhanh đến câu chưa điền tiếp theo">
+                            <span class="stat-label">Còn lại</span>
+                            <span id="statRemaining" class="stat-val">0</span>
+                            <span class="jump-pill" title="Cuộn tới câu chưa làm">⏭️</span>
+                        </div>
                     </div>
 
                     <div class="toolbar-controls">
@@ -421,6 +427,12 @@
                         <button class="btn btn-ghost btn-sm" onclick="clearStudyAnswers()" title="Xóa toàn bộ câu trả lời để làm lại">
                             🧹 Xóa kết quả
                         </button>
+                    </div>
+
+                    <!-- Integrated Visual Progress Bar at Bottom of Sticky Tracker -->
+                    <div class="study-progress-bar-wrap" title="Thanh tiến trình hoàn thành bài học">
+                        <div id="studyProgressCorrect" class="progress-bar-segment segment-correct" style="width: 0%;"></div>
+                        <div id="studyProgressWrong" class="progress-bar-segment segment-wrong" style="width: 0%;"></div>
                     </div>
                 </div>
 

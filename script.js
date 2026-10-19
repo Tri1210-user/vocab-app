@@ -1768,12 +1768,45 @@ function updateStudyStats() {
         }
     });
 
+    const answered = correct + wrong;
+    const remaining = Math.max(0, total - answered);
+
     document.getElementById('statTotal').textContent = total;
     document.getElementById('statCorrect').textContent = correct;
     document.getElementById('statWrong').textContent = wrong;
-    const answered = correct + wrong;
     document.getElementById('statPercent').textContent = answered > 0 ? Math.round((correct / answered) * 100) + '%' : '0%';
+
+    const remainingEl = document.getElementById('statRemaining');
+    if (remainingEl) remainingEl.textContent = remaining;
+
+    const progCorrect = document.getElementById('studyProgressCorrect');
+    const progWrong = document.getElementById('studyProgressWrong');
+    if (progCorrect && progWrong) {
+        const correctPct = total > 0 ? (correct / total) * 100 : 0;
+        const wrongPct = total > 0 ? (wrong / total) * 100 : 0;
+        progCorrect.style.width = `${correctPct}%`;
+        progWrong.style.width = `${wrongPct}%`;
+    }
 }
+
+window.scrollToNextUnanswered = function() {
+    const inputs = document.querySelectorAll('#vocabTable .answer-input');
+    const results = loadStudyResults(currentSetIndex);
+
+    for (let i = 0; i < inputs.length; i++) {
+        // If not submitted or text is empty
+        if (!results[i] || inputs[i].value.trim() === '') {
+            inputs[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            inputs[i].focus();
+            return;
+        }
+    }
+
+    if (inputs.length > 0) {
+        inputs[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        inputs[0].focus();
+    }
+};
 
 window.clearStudyAnswers = function() {
     document.querySelectorAll('#vocabTable .answer-input').forEach(input => {

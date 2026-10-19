@@ -981,9 +981,8 @@ body {
    ========================================================================== */
 
 .detail-header-bar {
-    position: sticky;
-    top: 64px;
-    z-index: 90;
+    position: relative;
+    z-index: 10;
     background-color: var(--bg-body);
     padding: 12px 0;
     display: flex;
@@ -1034,18 +1033,61 @@ body {
     margin-top: 8px;
 }
 
-/* Study Toolbar & Stats Ribbon */
+/* Study Toolbar & Stats Ribbon (Always Sticky Tracker Bar) */
 .study-toolbar {
+    position: sticky;
+    top: 64px;
+    z-index: 95;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
     background: var(--bg-surface);
-    padding: 12px 18px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 12px 18px 16px 18px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: all var(--transition-fast);
+}
+
+[data-theme="light"] .study-toolbar {
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .study-toolbar {
+    background: rgba(30, 41, 59, 0.94);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.study-progress-bar-wrap {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--border-color);
+    border-bottom-left-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+    overflow: hidden;
+    display: flex;
+}
+
+.progress-bar-segment {
+    height: 100%;
+    transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-bar-segment.segment-correct {
+    background: var(--success);
+}
+
+.progress-bar-segment.segment-wrong {
+    background: #eab308;
 }
 
 .stats-ribbon {
@@ -1079,9 +1121,34 @@ body {
     background: var(--border-color);
 }
 
+#statRemainingWrap {
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-hover);
+    border: 1px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#statRemainingWrap:hover {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.12);
+    transform: translateY(-1px);
+}
+
+.jump-pill {
+    font-size: 11px;
+    margin-left: 2px;
+    opacity: 0.85;
+}
+
 .text-success { color: var(--success); }
 .text-danger { color: var(--danger); }
 .text-accent { color: var(--primary); }
+.text-warning { color: #eab308; }
 
 .toolbar-controls {
     display: flex;
@@ -2561,8 +2628,11 @@ body {
     }
 
     .study-toolbar {
+        top: 60px;
         flex-direction: column;
         align-items: stretch;
+        padding: 10px 14px 14px 14px;
+        gap: 8px;
     }
 
     .test-sticky-bar {
