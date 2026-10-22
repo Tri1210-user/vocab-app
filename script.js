@@ -138,10 +138,16 @@ localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
 
 function saveAppData() {
     localStorage.setItem('toeicAppData', JSON.stringify(appData));
+    if (typeof triggerCloudSync === 'function') {
+        triggerCloudSync();
+    }
 }
 
 function saveFolderData() {
     localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
+    if (typeof triggerCloudSync === 'function') {
+        triggerCloudSync();
+    }
 }
 
 function getFolderMeta(folderName) {
@@ -3106,3 +3112,306 @@ function restoreNavState() {
 
 // Initial Launch with State Restoration
 restoreNavState();
+
+// ==========================================================================
+// FIREBASE AUTHENTICATION & CLOUD SYNC MODULE
+// ==========================================================================
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCaS3gpkKrU1lwQdYtKE3j6S34OfUbJBK4",
+    authDomain: "vocab-master-460c7.firebaseapp.com",
+    projectId: "vocab-master-460c7",
+    storageBucket: "vocab-master-460c7.firebasestorage.app",
+    messagingSenderId: "312779519619",
+    appId: "1:312779519619:web:20279f5fcdba662fce0db6",
+    measurementId: "G-WSVW4MX80C"
+};
+
+let firebaseApp = null;
+let firebaseAuth = null;
+let firestoreDb = null;
+let currentUser = null;
+let isInitialCloudLoad = true;
+let cloudSyncTimeout = null;
+let cloudUnsubscribeListener = null;
+
+function initFirebaseService() {
+    if (typeof firebase === 'undefined') {
+        console.warn('[Firebase] Firebase SDK chưa tải hoặc thiết bị đang ngoại tuyến.');
+        return;
+    }
+
+    try {
+        if (!firebase.apps.length) {
+            firebaseApp = firebase.initializeApp(firebaseConfig);
+        } else {
+            firebaseApp = firebase.app();
+        }
+
+        firebaseAuth = firebase.auth();
+        firestoreDb = firebase.firestore();
+
+        // Listen to Auth State Changes
+        firebaseAuth.onAuthStateChanged((user) => {
+            currentUser = user;
+            updateAuthUI(user);
+
+            if (user) {
+                console.log('[Firebase] Đã đăng nhập người dùng:', user.email);
+                attachCloudRealtimeListener(user);
+            } else {
+                console.log('[Firebase] Người dùng đang ở chế độ khách (Local only).');
+                if (cloudUnsubscribeListener) {
+                    cloudUnsubscribeListener();
+                    cloudUnsubscribeListener = null;
+                }
+                isInitialCloudLoad = true;
+            }
+        });
+
+        // Close user dropdown if clicking outside
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('userDropdownMenu');
+            const trigger = document.querySelector('.user-avatar-trigger');
+            if (dropdown && dropdown.style.display !== 'none') {
+                if (!dropdown.contains(e.target) && (!trigger || !trigger.contains(e.target))) {
+                    dropdown.style.display = 'none';
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error('[Firebase Init Error]', err);
+    }
+}
+
+async function loginWithGoogle() {
+    if (!firebaseAuth) {
+        alert("Dịch vụ Firebase đang tải hoặc không thể kết nối. Vui lòng kiểm tra lại kết nối mạng!");
+        return;
+    }
+
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('profile');
+    provider.addScope('email');
+
+    try {
+        setSyncStatus('syncing', 'Đang kết nối...');
+        await firebaseAuth.signInWithPopup(provider);
+    } catch (error) {
+        console.error("[Login Error]", error);
+        setSyncStatus('error', 'Lỗi đăng nhập');
+        if (error.code === 'auth/unauthorized-domain') {
+            alert("⚠️ Lỗi Tên Miền Chưa Được Cấp Phép:\nTên miền này chưa được thêm vào mục 'Authorized domains' trên Firebase Console.\n\nCách xử lý rất đơn giản:\n1. Mở Firebase Console > Authentication > Settings\n2. Chọn 'Authorized domains' > Bấm 'Add domain'\n3. Thêm: tri1210-user.github.io");
+        } else if (error.code === 'auth/popup-blocked') {
+            firebaseAuth.signInWithRedirect(provider);
+        } else if (error.code !== 'auth/popup-closed-by-user') {
+            alert("Đăng nhập thất bại: " + error.message);
+        }
+    }
+}
+
+async function logoutFromGoogle() {
+    if (!firebaseAuth) return;
+    try {
+        if (confirm("Bạn có chắc chắn muốn đăng xuất tài khoản Google không? Dữ liệu trên máy vẫn sẽ được lưu trữ cục bộ.")) {
+            await firebaseAuth.signOut();
+            const dropdown = document.getElementById('userDropdownMenu');
+            if (dropdown) dropdown.style.display = 'none';
+        }
+    } catch (error) {
+        console.error("[Logout Error]", error);
+        alert("Lỗi khi đăng xuất: " + error.message);
+    }
+}
+
+function updateAuthUI(user) {
+    const signInBtn = document.getElementById('googleSignInBtn');
+    const userBadge = document.getElementById('userProfileBadge');
+    const avatarImg = document.getElementById('userAvatarImg');
+    const userNameText = document.getElementById('userNameText');
+    const dropdownEmail = document.getElementById('dropdownUserEmail');
+
+    if (user) {
+        if (signInBtn) signInBtn.style.display = 'none';
+        if (userBadge) userBadge.style.display = 'inline-flex';
+        if (avatarImg) {
+            avatarImg.src = user.photoURL || 'https://www.gravatar.com/avatar/?d=mp';
+            avatarImg.onerror = () => { avatarImg.src = 'https://www.gravatar.com/avatar/?d=mp'; };
+        }
+        if (userNameText) {
+            userNameText.textContent = user.displayName || user.email.split('@')[0];
+        }
+        if (dropdownEmail) {
+            dropdownEmail.textContent = user.email;
+        }
+        setSyncStatus('synced', 'Đã đồng bộ');
+    } else {
+        if (signInBtn) signInBtn.style.display = 'inline-flex';
+        if (userBadge) userBadge.style.display = 'none';
+    }
+}
+
+function toggleUserDropdown(event) {
+    if (event) event.stopPropagation();
+    const dropdown = document.getElementById('userDropdownMenu');
+    if (dropdown) {
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function setSyncStatus(status, text) {
+    const dot = document.getElementById('syncStatusDot');
+    const textEl = document.getElementById('syncStatusText');
+    const lastSyncEl = document.getElementById('dropdownLastSync');
+
+    if (dot) {
+        dot.className = 'sync-dot ' + (status || 'synced');
+    }
+    if (textEl && text) {
+        textEl.textContent = text;
+    }
+    if (lastSyncEl && status === 'synced') {
+        const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        lastSyncEl.textContent = `Đã đồng bộ lúc ${timeStr}`;
+    }
+}
+
+function attachCloudRealtimeListener(user) {
+    if (!firestoreDb || !user) return;
+
+    if (cloudUnsubscribeListener) {
+        cloudUnsubscribeListener();
+    }
+
+    setSyncStatus('syncing', 'Đang tải Cloud...');
+
+    const userDocRef = firestoreDb.collection('users').doc(user.uid);
+
+    cloudUnsubscribeListener = userDocRef.onSnapshot(async (docSnapshot) => {
+        if (!docSnapshot.exists) {
+            // First time this user logs in: Push existing local data to cloud
+            console.log('[Firebase Cloud] Tài khoản mới, đang lưu dữ liệu hiện tại lên Cloud...');
+            setSyncStatus('syncing', 'Khởi tạo Cloud...');
+            await triggerCloudSync(true);
+        } else {
+            const cloudData = docSnapshot.data();
+            if (cloudData) {
+                // If this snapshot was triggered by our own local write (within 2.5s), skip re-rendering
+                if (Date.now() - (cloudData.updatedAt || 0) < 2500 && !isInitialCloudLoad) {
+                    setSyncStatus('synced', 'Đã đồng bộ');
+                    return;
+                }
+                mergeCloudDataIntoLocal(cloudData);
+            }
+        }
+        isInitialCloudLoad = false;
+    }, (error) => {
+        console.error('[Firebase Snapshot Error]', error);
+        setSyncStatus('error', 'Lỗi Cloud');
+    });
+}
+
+function mergeCloudDataIntoLocal(cloudData) {
+    let hasChanges = false;
+
+    // 1. Merge Sets (appData)
+    if (Array.isArray(cloudData.appData) && cloudData.appData.length > 0) {
+        const localSetMap = new Map();
+        appData.forEach(s => localSetMap.set(s.title, s));
+
+        cloudData.appData.forEach(cloudSet => {
+            const localSet = localSetMap.get(cloudSet.title);
+            if (!localSet) {
+                appData.push(cloudSet);
+                hasChanges = true;
+            } else {
+                // Merge words in set
+                const wordMap = new Map();
+                (localSet.words || []).forEach(w => wordMap.set((w.word || '').trim().toLowerCase(), w));
+                let wordsAdded = false;
+                (cloudSet.words || []).forEach(w => {
+                    const key = (w.word || '').trim().toLowerCase();
+                    if (!wordMap.has(key)) {
+                        localSet.words.push(w);
+                        wordsAdded = true;
+                    }
+                });
+                if (wordsAdded) hasChanges = true;
+            }
+        });
+    }
+
+    // 2. Merge Folders (folderData)
+    if (Array.isArray(cloudData.folderData) && cloudData.folderData.length > 0) {
+        const localFolderNames = new Set(folderData.map(f => f.name));
+        cloudData.folderData.forEach(cloudFolder => {
+            if (!localFolderNames.has(cloudFolder.name)) {
+                folderData.push(cloudFolder);
+                hasChanges = true;
+            }
+        });
+    }
+
+    if (hasChanges || isInitialCloudLoad) {
+        localStorage.setItem('toeicAppData', JSON.stringify(appData));
+        localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
+        console.log('[Firebase Cloud] Đã đồng bộ thành công dữ liệu từ Cloud Firestore.');
+        setSyncStatus('synced', 'Đã đồng bộ');
+        if (currentView === 'library') {
+            renderLibrary();
+        } else if (currentView === 'detail') {
+            renderStudyMode();
+        }
+    } else {
+        setSyncStatus('synced', 'Đã đồng bộ');
+    }
+}
+
+function triggerCloudSync(immediate = false) {
+    if (!currentUser || !firestoreDb) return;
+
+    if (cloudSyncTimeout) {
+        clearTimeout(cloudSyncTimeout);
+        cloudSyncTimeout = null;
+    }
+
+    const doSync = async () => {
+        try {
+            setSyncStatus('syncing', 'Đang lưu Cloud...');
+            const userDocRef = firestoreDb.collection('users').doc(currentUser.uid);
+            await userDocRef.set({
+                appData: appData,
+                folderData: folderData,
+                updatedAt: Date.now(),
+                userEmail: currentUser.email,
+                lastSyncBy: navigator.userAgent
+            }, { merge: true });
+            setSyncStatus('synced', 'Đã đồng bộ');
+        } catch (error) {
+            console.error('[Cloud Sync Error]', error);
+            setSyncStatus('error', 'Lỗi lưu Cloud');
+        }
+    };
+
+    if (immediate) {
+        doSync();
+    } else {
+        setSyncStatus('syncing', 'Chờ lưu...');
+        cloudSyncTimeout = setTimeout(doSync, 1200);
+    }
+}
+
+async function forceManualCloudSync() {
+    if (!currentUser) {
+        alert("Vui lòng bấm 'Đăng nhập' bằng tài khoản Google để bật tính năng đồng bộ đám mây!");
+        return;
+    }
+    await triggerCloudSync(true);
+    alert("✅ Toàn bộ học phần và thư mục của bạn đã được tải lên Cloud thành công!");
+    const dropdown = document.getElementById('userDropdownMenu');
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+// Khởi chạy kết nối Firebase
+initFirebaseService();

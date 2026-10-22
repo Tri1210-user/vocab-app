@@ -42,6 +42,13 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 
 ---
 
+8. **Đăng Nhập Google & Đồng Bộ Đám Mây (Cloud Sync with Firebase)**
+   - Đăng nhập 1 chạm bằng tài khoản Google (One-tap Google Sign-In).
+   - Tự động đồng bộ hóa 2 chiều toàn bộ học phần, thư mục giữa máy tính và điện thoại.
+   - Hoạt động mượt mà cả online lẫn offline; trạng thái đồng bộ hiển thị trực quan theo thời gian thực.
+
+---
+
 ## 🏷️ Lịch Sử Phiên Bản (Version History)
 
 | Version | Ngày | Nội dung phát triển |
@@ -53,10 +60,12 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.3.0** | 19/10/2026 | Lưu trữ bền vững với `localStorage` và tự động khôi phục trạng thái điều hướng khi tắt tab. |
 | **v1.4.0** | 19/10/2026 | Chấm điểm khi bấm `Enter`, tránh lộ đáp án khi đang gõ & phím tắt `F2`/`Ctrl+Enter` xem đáp án. |
 | **v1.5.0** | 19/10/2026 | Thanh trạng thái ghim cố định với thanh tiến trình trực quan & phím nhảy nhanh đến câu chưa làm. |
+| **v1.6.0** | 22/10/2026 | Tích hợp Đăng nhập Google & Đồng bộ hóa đám mây 2 chiều tự động qua Firebase Firestore. |
 
 ---
 
 ## 💻 Hướng Dẫn Sử Dụng
 
-1. Mở trực tiếp file `index.html` trên bất kỳ trình duyệt hiện đại nào (Chrome, Edge, Firefox, Brave...).
-2. Không cần cài đặt server hay backend, toàn bộ dữ liệu chạy cục bộ an toàn trên trình duyệt của bạn.
+1. **Truy cập Online:** Mở trực tiếp trên mọi thiết bị (máy tính, điện thoại, máy tính bảng) qua đường link GitHub Pages:
+   👉 **[https://tri1210-user.github.io/vocab-app/](https://tri1210-user.github.io/vocab-app/)**
+2. **Chạy Cục Bộ (Offline):** Mở trực tiếp file `index.html` trên bất kỳ trình duyệt nào mà không cần cài đặt server hay backend.
