@@ -164,6 +164,51 @@ let currentOpenedFolder = null; // null if browsing all folders, or string folde
 let currentSetIndex = 0;
 let currentSetTab = 'study'; // 'study', 'manage', 'list'
 let isAutoSpeakEnabled = true;
+let currentStudyFilter = 'all'; // 'all', 'starred'
+let currentListFilterStarred = false; // boolean for list tab
+
+function getCurrentSet() {
+    if (currentSetIndex === 'starred_hub') {
+        return getStarredHubVirtualSet();
+    }
+    return appData[currentSetIndex];
+}
+
+function getStarredHubVirtualSet() {
+    const starredWords = [];
+    appData.forEach((set, sIdx) => {
+        (set.words || []).forEach((w, wIdx) => {
+            if (w.starred) {
+                starredWords.push({
+                    ...w,
+                    _originalSetIndex: sIdx,
+                    _originalWordIndex: wIdx,
+                    _originSetTitle: set.title
+                });
+            }
+        });
+    });
+    return {
+        title: "⭐ Sổ tay các từ cần ôn",
+        folder: "Tổng hợp",
+        isVirtualStarredSet: true,
+        words: starredWords
+    };
+}
+
+window.openStarredHubSet = function() {
+    const hubSet = getStarredHubVirtualSet();
+    if (hubSet.words.length === 0) {
+        alert("Bạn chưa có từ nào được đánh dấu ⭐. Hãy bấm vào biểu tượng ngôi sao bên cạnh mỗi từ vựng để thêm vào sổ tay cần ôn nhé!");
+        return;
+    }
+    currentSetIndex = 'starred_hub';
+    currentSetTab = 'study';
+    currentStudyFilter = 'all';
+    navigateTo('detail');
+    switchSetTab('study');
+    saveNavState();
+};
 
 // Folder Modal State
 let folderModalEditingName = null; // null = create new, string = editing target
@@ -310,13 +355,23 @@ function renderSetsCards() {
 
     setsList.innerHTML = '';
 
+    // Count total starred words across all sets
+    let totalStarredWords = 0;
+    appData.forEach(s => {
+        (s.words || []).forEach(w => {
+            if (w.starred) totalStarredWords++;
+        });
+    });
+
     const filtered = appData.map((set, originalIndex) => ({ set, originalIndex })).filter(({ set }) => {
         const matchSearch = set.title.toLowerCase().includes(searchQuery);
         const matchFolder = !folderFilter || set.folder === folderFilter;
         return matchSearch && matchFolder;
     });
 
-    if (filtered.length === 0) {
+    const showStarredHubCard = totalStarredWords > 0 && !folderFilter && (!searchQuery || 'sổ tay các từ cần ôn'.includes(searchQuery));
+
+    if (filtered.length === 0 && !showStarredHubCard) {
         setsList.style.display = 'none';
         emptyState.style.display = 'block';
         return;
@@ -324,6 +379,34 @@ function renderSetsCards() {
 
     setsList.style.display = 'grid';
     emptyState.style.display = 'none';
+
+    // Render Starred Hub Card at top if available
+    if (showStarredHubCard) {
+        const hubCard = document.createElement('div');
+        hubCard.className = 'set-card starred-hub-card';
+        hubCard.onclick = () => openStarredHubSet();
+        hubCard.innerHTML = `
+            <div>
+                <div class="set-card-meta flex-between">
+                    <span class="set-card-folder starred-folder-tag">
+                        ⭐ Ôn tập tập trung
+                    </span>
+                    <span class="badge-smart-hub">Tự động tổng hợp</span>
+                </div>
+                <h3 class="set-card-title text-starred-title">⭐ Sổ tay các từ cần ôn</h3>
+                <p class="starred-card-desc">Gồm tất cả các từ bạn đã đánh dấu từ các học phần</p>
+            </div>
+            <div class="set-card-footer">
+                <span class="set-card-count text-starred-count">⭐ <strong>${totalStarredWords}</strong> từ cần ôn</span>
+                <div class="set-card-actions">
+                    <button class="btn btn-sm btn-practice-starred" onclick="event.stopPropagation(); openStarredHubSet()">
+                        Luyện ngay 🚀
+                    </button>
+                </div>
+            </div>
+        `;
+        setsList.appendChild(hubCard);
+    }
 
     filtered.forEach(({ set, originalIndex }) => {
         const folderName = set.folder || 'Chưa phân loại';
@@ -1420,24 +1503,34 @@ window.goBackFromSetDetail = function() {
 };
 
 function renderSetDetail() {
-    const set = appData[currentSetIndex];
+    const set = getCurrentSet();
     if (!set) {
         navigateTo('library');
         return;
+    }
+
+    const isHub = currentSetIndex === 'starred_hub';
+    const manageTabBtn = document.getElementById('setTabManage');
+    if (manageTabBtn) {
+        manageTabBtn.style.display = isHub ? 'none' : 'inline-flex';
     }
 
     const fMeta = getFolderMeta(set.folder);
     document.getElementById('detailSetTitle').textContent = set.title;
     const detailFolderEl = document.getElementById('detailSetFolder');
     detailFolderEl.textContent = `${fMeta.icon} ${set.folder || 'Chưa phân loại'}`;
-    detailFolderEl.style.color = fMeta.color;
-    document.getElementById('detailWordCount').textContent = `${set.words.length} thuật ngữ`;
+    detailFolderEl.style.color = isHub ? '#f59e0b' : fMeta.color;
+    document.getElementById('detailWordCount').textContent = isHub ? `${set.words.length} từ cần ôn` : `${set.words.length} thuật ngữ`;
     document.getElementById('setListWordCount').textContent = set.words.length;
 
     if (currentSetTab === 'study') {
         renderStudyTable();
     } else if (currentSetTab === 'manage') {
-        updateBulkPreview();
+        if (isHub) {
+            switchSetTab('study');
+        } else {
+            updateBulkPreview();
+        }
     } else if (currentSetTab === 'list') {
         renderWordListTable();
     }
@@ -1459,6 +1552,7 @@ window.switchSetTab = function(tabName) {
 
 // --- STUDY ANSWERS & RESULTS PERSISTENCE (LOCALSTORAGE) ---
 function getStudyStorageKey(index) {
+    if (index === 'starred_hub') return 'toeic_study_answers_starred_hub';
     const set = appData[index];
     if (set && set.title) {
         const safeTitle = (set.title || '').replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]/g, '_').slice(0, 40);
@@ -1468,6 +1562,7 @@ function getStudyStorageKey(index) {
 }
 
 function getStudyResultsKey(index) {
+    if (index === 'starred_hub') return 'toeic_study_results_starred_hub';
     const set = appData[index];
     if (set && set.title) {
         const safeTitle = (set.title || '').replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]/g, '_').slice(0, 40);
@@ -1561,15 +1656,98 @@ function clearStudyAnswersForSet(index) {
     } catch (e) {}
 }
 
+// --- STARRED FILTER & STUDY CONTROLS ---
+window.setStudyFilter = function(filterType) {
+    currentStudyFilter = filterType;
+    const btnAll = document.getElementById('filterAllWordsBtn');
+    const btnStarred = document.getElementById('filterStarredWordsBtn');
+    if (btnAll && btnStarred) {
+        btnAll.classList.toggle('active', filterType === 'all');
+        btnStarred.classList.toggle('active', filterType === 'starred');
+    }
+    renderStudyTable();
+};
+
+function updateStudyFilterCounts() {
+    const set = getCurrentSet();
+    const totalWords = set ? set.words.length : 0;
+    const starredWords = set ? set.words.filter(w => w.starred).length : 0;
+
+    const chipAll = document.getElementById('chipCountAll');
+    const chipStarred = document.getElementById('chipCountStarred');
+    if (chipAll) chipAll.textContent = totalWords;
+    if (chipStarred) chipStarred.textContent = starredWords;
+}
+
+window.toggleStarWord = function(index, event) {
+    if (event) event.stopPropagation();
+    const set = getCurrentSet();
+    if (!set || !set.words[index]) return;
+
+    const word = set.words[index];
+    word.starred = !word.starred;
+
+    // If inside virtual starred hub, update the source set word
+    if (set.isVirtualStarredSet && typeof word._originalSetIndex === 'number') {
+        const origSet = appData[word._originalSetIndex];
+        if (origSet && origSet.words[word._originalWordIndex]) {
+            origSet.words[word._originalWordIndex].starred = word.starred;
+        }
+    }
+
+    saveAppData(); // Persists to localStorage and triggers Firebase Cloud Sync
+
+    // Update row in DOM
+    const tr = document.querySelector(`tr[data-word-index="${index}"]`);
+    if (tr) {
+        tr.classList.toggle('row-starred', word.starred);
+        const btn = tr.querySelector('.star-btn');
+        if (btn) {
+            btn.classList.toggle('active', word.starred);
+            btn.innerHTML = word.starred ? '⭐' : '☆';
+            btn.title = word.starred ? 'Bỏ đánh dấu (Alt+S)' : 'Đánh dấu cần ôn (Alt+S)';
+        }
+    }
+
+    updateStudyFilterCounts();
+
+    // If in 'starred' filter mode and word is unstarred, refresh after brief animation
+    if (currentStudyFilter === 'starred' && !word.starred && tr) {
+        tr.style.opacity = '0.35';
+        tr.style.transition = 'opacity 0.25s ease';
+        setTimeout(() => {
+            renderStudyTable();
+        }, 280);
+    }
+};
+
 // --- STUDY TAB (TABLE TYPING PRACTICE) ---
 function renderStudyTable() {
-    const set = appData[currentSetIndex];
+    const set = getCurrentSet();
     const tbody = document.getElementById('vocabBody');
     tbody.innerHTML = '';
 
+    updateStudyFilterCounts();
+
     if (!set || set.words.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
-            Chưa có từ vựng nào trong học phần này. Hãy chuyển sang tab <strong>"➕ Thêm & Quản lý từ"</strong> để thêm từ!
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
+            Chưa có từ vựng nào trong phần này.
+        </td></tr>`;
+        updateStudyStats();
+        return;
+    }
+
+    let wordsToRender = set.words.map((item, originalIndex) => ({ item, originalIndex }));
+    if (currentStudyFilter === 'starred') {
+        wordsToRender = wordsToRender.filter(({ item }) => item.starred);
+    }
+
+    if (wordsToRender.length === 0 && currentStudyFilter === 'starred') {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 50px 20px; color: var(--text-muted);">
+            <div style="font-size: 36px; margin-bottom: 10px;">⭐</div>
+            <strong style="font-size: 15px; color: var(--text-main);">Chưa có từ nào được đánh dấu cần ôn!</strong>
+            <p style="margin-top: 6px; font-size: 13px;">Bấm vào biểu tượng ngôi sao <strong>☆</strong> hoặc phím tắt <strong>Alt + S</strong> ở bất kỳ dòng nào để đánh dấu các từ bạn cần tập trung ôn luyện.</p>
+            <button class="btn btn-outline btn-sm" style="margin-top: 14px;" onclick="setStudyFilter('all')">Xem tất cả từ</button>
         </td></tr>`;
         updateStudyStats();
         return;
@@ -1578,9 +1756,10 @@ function renderStudyTable() {
     const savedAnswers = loadStudyAnswers(currentSetIndex);
     const savedResults = loadStudyResults(currentSetIndex);
 
-    set.words.forEach((item, index) => {
-        const oldAns = savedAnswers[index] || '';
-        const oldRes = savedResults[index] || null;
+    wordsToRender.forEach(({ item, originalIndex }, displayIndex) => {
+        const oldAns = savedAnswers[originalIndex] || '';
+        const oldRes = savedResults[originalIndex] || null;
+        const isStarred = !!item.starred;
 
         let inputClass = 'answer-input';
         let resultHtml = '';
@@ -1595,13 +1774,22 @@ function renderStudyTable() {
             inputClass += ' input-revealed';
             resultHtml = `<span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(item.vie)})</span>`;
         } else {
-            // Not submitted yet: show clean hint button if user wants to see answer without typing
-            resultHtml = `<button class="btn-show-hint" onclick="revealStudyAnswer(${index})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+            resultHtml = `<button class="btn-show-hint" onclick="revealStudyAnswer(${originalIndex})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
         }
 
         const tr = document.createElement('tr');
+        if (isStarred) {
+            tr.classList.add('row-starred');
+        }
+        tr.setAttribute('data-word-index', originalIndex);
+
         tr.innerHTML = `
-            <td style="color: var(--text-muted); font-weight: 600;">${index + 1}</td>
+            <td class="star-cell" style="text-align: center;">
+                <button class="star-btn ${isStarred ? 'active' : ''}" onclick="toggleStarWord(${originalIndex}, event)" title="${isStarred ? 'Bỏ đánh dấu (Alt+S)' : 'Đánh dấu cần ôn (Alt+S)'}">
+                    ${isStarred ? '⭐' : '☆'}
+                </button>
+            </td>
+            <td style="color: var(--text-muted); font-weight: 600;">${displayIndex + 1}</td>
             <td>
                 <span class="word-prompt">
                     ${escapeHtml(item.eng)}
@@ -1610,9 +1798,9 @@ function renderStudyTable() {
             </td>
             <td><span class="type-badge">${escapeHtml(item.type || '-')}</span></td>
             <td>
-                <input type="text" class="${inputClass}" placeholder="Gõ nghĩa rồi Enter... (F2: xem đáp án)" value="${escapeHtml(oldAns)}" data-index="${index}">
+                <input type="text" class="${inputClass}" placeholder="Gõ nghĩa rồi Enter... (F2: đáp án, Alt+S: đánh dấu ⭐)" value="${escapeHtml(oldAns)}" data-index="${originalIndex}">
             </td>
-            <td class="result-cell" data-result-for="${index}">
+            <td class="result-cell" data-result-for="${originalIndex}">
                 ${resultHtml}
             </td>
         `;
@@ -1624,7 +1812,7 @@ function renderStudyTable() {
 }
 
 function checkStudyScore(input, index) {
-    const set = appData[currentSetIndex];
+    const set = getCurrentSet();
     if (!set || !set.words[index]) return;
 
     const userAnswer = input.value.trim().toLowerCase();
@@ -1664,7 +1852,7 @@ function checkStudyScore(input, index) {
 }
 
 window.revealStudyAnswer = function(index) {
-    const set = appData[currentSetIndex];
+    const set = getCurrentSet();
     if (!set || !set.words[index]) return;
 
     const input = document.querySelector(`#vocabTable .answer-input[data-index="${index}"]`);
@@ -1691,31 +1879,32 @@ window.revealStudyAnswer = function(index) {
 
 function setupStudyEvents() {
     const inputs = document.querySelectorAll('#vocabTable .answer-input');
-    const set = appData[currentSetIndex];
+    const set = getCurrentSet();
     if (!set) return;
 
-    inputs.forEach((input, index) => {
+    inputs.forEach((input, seqIndex) => {
+        const wordIndex = parseInt(input.getAttribute('data-index'), 10);
+
         input.addEventListener('focus', () => {
-            if (isAutoSpeakEnabled && set.words[index]) {
-                speakWord(set.words[index].eng);
+            if (isAutoSpeakEnabled && set.words[wordIndex]) {
+                speakWord(set.words[wordIndex].eng);
             }
         });
 
-        // Real-time autosave text ONLY - NO SCORE CHECK WHILE TYPING to prevent spoiling answers
+        // Real-time autosave text ONLY
         input.addEventListener('input', () => {
             const savedAnswers = loadStudyAnswers(currentSetIndex);
             const savedResults = loadStudyResults(currentSetIndex);
 
-            savedAnswers[index] = input.value;
-            // When user starts modifying, reset previous score evaluation for this row
-            savedResults[index] = null;
+            savedAnswers[wordIndex] = input.value;
+            savedResults[wordIndex] = null;
 
             saveStudyAnswers(currentSetIndex, savedAnswers);
             saveStudyResults(currentSetIndex, savedResults);
 
-            const resultCell = document.querySelector(`.result-cell[data-result-for="${index}"]`);
+            const resultCell = document.querySelector(`.result-cell[data-result-for="${wordIndex}"]`);
             if (resultCell) {
-                resultCell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${index})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+                resultCell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${wordIndex})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
             }
             input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
 
@@ -1723,54 +1912,64 @@ function setupStudyEvents() {
         });
 
         input.addEventListener('keydown', (e) => {
-            // A. Shortcut to reveal answer: F2, Ctrl+Enter, Alt+Enter, or Alt+H
+            // A. Shortcut to toggle Star: Alt + S
+            if (e.altKey && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                toggleStarWord(wordIndex);
+                return;
+            }
+
+            // B. Shortcut to reveal answer: F2, Ctrl+Enter, Alt+Enter, or Alt+H
             if (e.key === 'F2' || ((e.ctrlKey || e.altKey) && e.key === 'Enter') || (e.altKey && (e.key === 'h' || e.key === 'H'))) {
                 e.preventDefault();
-                revealStudyAnswer(index);
+                revealStudyAnswer(wordIndex);
                 return;
             }
 
-            // B. Tab: Pronounce English word
+            // C. Tab: Pronounce English word
             if (e.key === 'Tab') {
                 e.preventDefault();
-                speakWord(set.words[index].eng);
+                if (set.words[wordIndex]) speakWord(set.words[wordIndex].eng);
                 return;
             }
 
-            // C. Enter: Submit answer & validate ONLY when Enter is pressed
+            // D. Enter: Submit answer & validate ONLY when Enter is pressed
             if (e.key === 'Enter') {
                 e.preventDefault();
-                checkStudyScore(input, index);
+                checkStudyScore(input, wordIndex);
 
-                if (index + 1 < inputs.length) {
-                    inputs[index + 1].focus();
+                if (seqIndex + 1 < inputs.length) {
+                    inputs[seqIndex + 1].focus();
                 }
                 return;
             }
 
-            // D. Arrow Up / Down navigation
+            // E. Arrow Up / Down navigation
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                if (index + 1 < inputs.length) inputs[index + 1].focus();
+                if (seqIndex + 1 < inputs.length) inputs[seqIndex + 1].focus();
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (index - 1 >= 0) inputs[index - 1].focus();
+                if (seqIndex - 1 >= 0) inputs[seqIndex - 1].focus();
             }
         });
     });
 }
 
 function updateStudyStats() {
-    const set = appData[currentSetIndex];
-    const total = set ? set.words.length : 0;
+    const visibleRows = document.querySelectorAll('#vocabBody tr[data-word-index]');
+    const total = visibleRows.length;
     let correct = 0;
     let wrong = 0;
 
-    document.querySelectorAll('#vocabTable .result-cell').forEach(cell => {
-        if (cell.querySelector('.result-correct')) {
-            correct++;
-        } else if (cell.querySelector('.result-wrong') || cell.querySelector('.result-revealed')) {
-            wrong++;
+    visibleRows.forEach(row => {
+        const cell = row.querySelector('.result-cell');
+        if (cell) {
+            if (cell.querySelector('.result-correct')) {
+                correct++;
+            } else if (cell.querySelector('.result-wrong') || cell.querySelector('.result-revealed')) {
+                wrong++;
+            }
         }
     });
 
@@ -1800,8 +1999,8 @@ window.scrollToNextUnanswered = function() {
     const results = loadStudyResults(currentSetIndex);
 
     for (let i = 0; i < inputs.length; i++) {
-        // If not submitted or text is empty
-        if (!results[i] || inputs[i].value.trim() === '') {
+        const wordIdx = parseInt(inputs[i].getAttribute('data-index'), 10);
+        if (!results[wordIdx] || inputs[i].value.trim() === '') {
             inputs[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
             inputs[i].focus();
             return;
@@ -1820,7 +2019,9 @@ window.clearStudyAnswers = function() {
         input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
     });
     document.querySelectorAll('#vocabTable .result-cell').forEach((cell, idx) => {
-        cell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${idx})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+        const row = cell.closest('tr');
+        const wordIdx = row && row.hasAttribute('data-word-index') ? parseInt(row.getAttribute('data-word-index'), 10) : idx;
+        cell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${wordIdx})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
     });
     clearStudyAnswersForSet(currentSetIndex);
     updateStudyStats();
@@ -2086,29 +2287,42 @@ window.exportCurrentSetTxt = function() {
 
 // --- WORDS LIST TAB ---
 function renderWordListTable() {
-    const set = appData[currentSetIndex];
+    const set = getCurrentSet();
     const tbody = document.getElementById('wordListBody');
     const query = (document.getElementById('wordSearchInput').value || '').trim().toLowerCase();
     tbody.innerHTML = '';
 
     if (!set || set.words.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">Học phần này chưa có từ nào.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">Học phần này chưa có từ nào.</td></tr>`;
         return;
     }
 
     const filtered = set.words.map((w, originalIdx) => ({ w, originalIdx })).filter(({ w }) => {
-        return w.eng.toLowerCase().includes(query) || w.vie.toLowerCase().includes(query);
+        const matchesQuery = w.eng.toLowerCase().includes(query) || w.vie.toLowerCase().includes(query);
+        const matchesStarred = !currentListFilterStarred || w.starred;
+        return matchesQuery && matchesStarred;
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Không tìm thấy từ vựng nào khớp với từ khóa tìm kiếm.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Không tìm thấy từ vựng nào khớp với bộ lọc.</td></tr>`;
         return;
     }
 
-    filtered.forEach(({ w, originalIdx }) => {
+    filtered.forEach(({ w, originalIdx }, displayIdx) => {
         const tr = document.createElement('tr');
+        const isStarred = !!w.starred;
+        if (isStarred) {
+            tr.classList.add('row-starred');
+        }
+        tr.setAttribute('data-word-index', originalIdx);
+
         tr.innerHTML = `
-            <td style="color: var(--text-muted); font-weight: 600;">${originalIdx + 1}</td>
+            <td class="star-cell" style="text-align: center;">
+                <button class="star-btn ${isStarred ? 'active' : ''}" onclick="toggleStarWord(${originalIdx}, event); renderWordListTable();" title="${isStarred ? 'Bỏ đánh dấu' : 'Đánh dấu cần ôn'}">
+                    ${isStarred ? '⭐' : '☆'}
+                </button>
+            </td>
+            <td style="color: var(--text-muted); font-weight: 600;">${displayIdx + 1}</td>
             <td>
                 <strong>${escapeHtml(w.eng)}</strong>
                 <button class="speak-icon-btn" onclick="speakWord('${escapeJsString(w.eng)}')" title="Phát âm">🔊</button>
@@ -2123,6 +2337,15 @@ function renderWordListTable() {
         tbody.appendChild(tr);
     });
 }
+
+window.toggleListStarredFilter = function() {
+    currentListFilterStarred = !currentListFilterStarred;
+    const btn = document.getElementById('listFilterStarredBtn');
+    if (btn) {
+        btn.classList.toggle('active', currentListFilterStarred);
+    }
+    renderWordListTable();
+};
 
 window.filterWordList = function() {
     renderWordListTable();
@@ -2194,9 +2417,24 @@ window.selectAllSetsForTest = function(shouldSelectAll) {
     handleSetSelectionChange();
 };
 
+window.handleTestStarredFilterChange = function() {
+    updateTestSummaryCounts();
+};
+
 function updateTestSummaryCounts() {
     const selectedSets = activeTestState.selectedSetIndices.map(i => appData[i]).filter(Boolean);
-    const totalWords = selectedSets.reduce((sum, s) => sum + s.words.length, 0);
+    const onlyStarred = document.getElementById('testOptOnlyStarred') ? document.getElementById('testOptOnlyStarred').checked : false;
+
+    let totalWords = 0;
+    if (onlyStarred) {
+        selectedSets.forEach(s => {
+            (s.words || []).forEach(w => {
+                if (w.starred) totalWords++;
+            });
+        });
+    } else {
+        totalWords = selectedSets.reduce((sum, s) => sum + s.words.length, 0);
+    }
 
     document.getElementById('testSummarySetsCount').textContent = selectedSets.length;
     document.getElementById('testSummaryTotalWords').textContent = totalWords;
@@ -2263,24 +2501,33 @@ window.startCustomTest = function() {
         return;
     }
 
+    const onlyStarred = document.getElementById('testOptOnlyStarred') ? document.getElementById('testOptOnlyStarred').checked : false;
+
     // Pool all words from selected sets
     let pool = [];
     selectedIndices.forEach(idx => {
         const set = appData[idx];
         if (set && set.words.length > 0) {
             set.words.forEach(w => {
-                pool.push({
-                    eng: w.eng,
-                    type: w.type || '',
-                    vie: w.vie,
-                    sourceSet: set.title
-                });
+                if (!onlyStarred || w.starred) {
+                    pool.push({
+                        eng: w.eng,
+                        type: w.type || '',
+                        vie: w.vie,
+                        starred: !!w.starred,
+                        sourceSet: set.title
+                    });
+                }
             });
         }
     });
 
     if (pool.length === 0) {
-        alert("Các học phần đã chọn không có từ vựng nào!");
+        if (onlyStarred) {
+            alert("Các học phần đã chọn chưa có từ nào được đánh dấu ⭐. Vui lòng đánh dấu từ trước hoặc bỏ chọn tùy chọn 'Chỉ kiểm tra từ đã đánh dấu'!");
+        } else {
+            alert("Các học phần đã chọn không có từ vựng nào!");
+        }
         return;
     }
 

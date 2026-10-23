@@ -430,6 +430,19 @@
             <div id="setStudySection" class="set-section-panel active">
                 <div class="study-toolbar">
                     <div class="stats-ribbon">
+                        <!-- Quick Filter: All vs Starred -->
+                        <div class="study-filter-group" title="Lọc danh sách từ cần học">
+                            <button id="filterAllWordsBtn" class="filter-chip active" onclick="setStudyFilter('all')">
+                                <span>Tất cả</span>
+                                <span class="chip-count" id="chipCountAll">0</span>
+                            </button>
+                            <button id="filterStarredWordsBtn" class="filter-chip" onclick="setStudyFilter('starred')" title="Chỉ hiển thị các từ đã đánh dấu ⭐ (Alt+S)">
+                                <span>⭐ Cần ôn</span>
+                                <span class="chip-count" id="chipCountStarred">0</span>
+                            </button>
+                        </div>
+
+                        <div class="stat-divider"></div>
                         <div class="stat-item">
                             <span class="stat-label">Tổng</span>
                             <span id="statTotal" class="stat-val">0</span>
@@ -461,7 +474,9 @@
                         <div class="shortcut-tip" title="Các phím tắt hỗ trợ khi học từ">
                             <span><kbd>Enter</kbd> Kiểm tra</span>
                             <span>•</span>
-                            <span><kbd>Ctrl+Enter</kbd> hoặc <kbd>F2</kbd> Xem đáp án</span>
+                            <span><kbd>F2</kbd> Đáp án</span>
+                            <span>•</span>
+                            <span><kbd>Alt+S</kbd> Đánh dấu ⭐</span>
                             <span>•</span>
                             <span><kbd>Tab</kbd> Phát âm</span>
                         </div>
@@ -485,11 +500,12 @@
                     <table class="modern-table" id="vocabTable">
                         <thead>
                             <tr>
-                                <th style="width: 50px;">STT</th>
+                                <th style="width: 44px; text-align: center;" title="Đánh dấu từ cần ôn (Alt+S)">⭐</th>
+                                <th style="width: 46px;">STT</th>
                                 <th style="width: 24%;">Từ vựng (English)</th>
-                                <th style="width: 14%;">Loại từ</th>
+                                <th style="width: 13%;">Loại từ</th>
                                 <th>Nghĩa tiếng Việt (Gõ đáp án rồi bấm Enter)</th>
-                                <th style="width: 28%;">Kết quả kiểm tra <span style="font-size: 11px; font-weight: normal; opacity: 0.75;">(F2: Xem đáp án)</span></th>
+                                <th style="width: 27%;">Kết quả kiểm tra <span style="font-size: 11px; font-weight: normal; opacity: 0.75;">(F2: Xem đáp án)</span></th>
                             </tr>
                         </thead>
                         <tbody id="vocabBody"></tbody>
@@ -608,16 +624,22 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input type="text" id="wordSearchInput" placeholder="Tìm kiếm từ tiếng Anh hoặc tiếng Việt..." oninput="filterWordList()">
                     </div>
-                    <button class="btn btn-outline btn-sm" onclick="switchSetTab('manage')">
-                        + Thêm từ mới
-                    </button>
+                    <div class="btn-group">
+                        <button id="listFilterStarredBtn" class="filter-chip" onclick="toggleListStarredFilter()" title="Lọc chỉ các từ có gắn dấu ⭐">
+                            <span>⭐ Chỉ từ cần ôn</span>
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="switchSetTab('manage')">
+                            + Thêm từ mới
+                        </button>
+                    </div>
                 </div>
 
                 <div class="table-container">
                     <table class="modern-table" id="wordListTable">
                         <thead>
                             <tr>
-                                <th style="width: 60px;">STT</th>
+                                <th style="width: 44px; text-align: center;" title="Đánh dấu cần ôn">⭐</th>
+                                <th style="width: 50px;">STT</th>
                                 <th style="width: 30%;">Tiếng Anh</th>
                                 <th style="width: 15%;">Loại từ</th>
                                 <th>Tiếng Việt</th>
@@ -706,6 +728,11 @@
 
                         <!-- Tùy chọn bổ sung -->
                         <div class="options-group">
+                            <label class="switch-row highlight-starred-row">
+                                <span>⭐ <strong>Chỉ kiểm tra từ đã đánh dấu (Starred Words)</strong></span>
+                                <input type="checkbox" id="testOptOnlyStarred" onchange="handleTestStarredFilterChange()">
+                            </label>
+
                             <label class="switch-row">
                                 <span>🔀 <strong>Trộn ngẫu nhiên câu hỏi (Shuffle)</strong></span>
                                 <input type="checkbox" id="testOptShuffle" checked>

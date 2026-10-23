@@ -47,6 +47,13 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
    - Tự động đồng bộ hóa 2 chiều toàn bộ học phần, thư mục giữa máy tính và điện thoại.
    - Hoạt động mượt mà cả online lẫn offline; trạng thái đồng bộ hiển thị trực quan theo thời gian thực.
 
+9. **Đánh Dấu Từ Cần Ôn & Luyện Tập Tập Trung (Starred Words & Review Mode)**
+   - Đánh dấu từ yêu thích / từ khó bằng nút ⭐ hoặc phím tắt `Alt + S` ngay khi đang gõ.
+   - Hàng chứa từ đánh dấu tự động đổi màu vàng ánh kim (amber highlight) trực quan, nổi bật.
+   - Bộ lọc nhanh `[ Tất cả ]` / `[ ⭐ Cần ôn ]` ngay trên thanh công cụ Luyện gõ.
+   - Thẻ thông minh **"⭐ Sổ tay các từ cần ôn"** tự động tổng hợp tất cả từ sao từ mọi học phần ở Thư viện.
+   - Tùy chọn thi trắc nghiệm độc quyền: *"Chỉ kiểm tra các từ đã đánh dấu ⭐"*.
+
 ---
 
 ## 🏷️ Lịch Sử Phiên Bản (Version History)
@@ -61,6 +68,7 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.4.0** | 19/10/2026 | Chấm điểm khi bấm `Enter`, tránh lộ đáp án khi đang gõ & phím tắt `F2`/`Ctrl+Enter` xem đáp án. |
 | **v1.5.0** | 19/10/2026 | Thanh trạng thái ghim cố định với thanh tiến trình trực quan & phím nhảy nhanh đến câu chưa làm. |
 | **v1.6.0** | 22/10/2026 | Tích hợp Đăng nhập Google & Đồng bộ hóa đám mây 2 chiều tự động qua Firebase Firestore. |
+| **v1.7.0** | 23/10/2026 | Tính năng Đánh dấu từ cần ôn (⭐), đổi màu hàng trực quan, lọc nhanh theo từ sao, Sổ tay từ cần ôn tổng hợp tại Thư viện & tùy chọn thi riêng từ khó. |
 
 ---
 
