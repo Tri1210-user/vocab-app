@@ -54,8 +54,8 @@
                     <span class="theme-icon-dark">🌙</span>
                     <span class="theme-icon-light" style="display: none;">☀️</span>
                 </button>
-                <button class="btn btn-outline btn-sm" onclick="openSampleDataModal()" title="Nạp hoặc quản lý dữ liệu">
-                    <span>Dữ liệu mẫu</span>
+                <button class="btn btn-outline btn-sm" onclick="openSampleDataModal()" title="Sao lưu hoặc khôi phục dữ liệu">
+                    <span>Sao lưu / Khôi phục</span>
                 </button>
 
                 <!-- Cloud Sync & Authentication Section -->
@@ -1076,27 +1076,19 @@
         </div>
     </div>
 
-    <!-- Modal Dữ Liệu Mẫu & Sao Lưu (Data Management) -->
+    <!-- Modal Dữ Liệu & Sao Lưu (Data Management) -->
     <div id="sampleDataModal" class="modal-overlay" style="display: none;">
         <div class="modal-card">
             <div class="modal-header">
-                <h3 class="modal-title">⚙️ Quản lý dữ liệu & Mẫu TOEIC</h3>
+                <h3 class="modal-title">⚙️ Sao lưu & Khôi phục dữ liệu</h3>
                 <button class="modal-close-btn" onclick="closeSampleDataModal()">✕</button>
             </div>
             <div class="modal-body">
                 <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 15px;">
-                    Bạn có thể nạp các bộ từ vựng mẫu TOEIC chất lượng cao để trải nghiệm ngay, hoặc sao lưu toàn bộ ứng dụng sang JSON.
+                    Bạn có thể tải file sao lưu JSON toàn bộ học phần và thư mục của mình về máy hoặc nạp lại dữ liệu bất cứ lúc nào.
                 </p>
                 
                 <div class="action-card-list">
-                    <div class="action-card" onclick="loadPresetSampleData()">
-                        <div class="action-card-icon">⚡</div>
-                        <div class="action-card-info">
-                            <strong>Nạp bộ từ mẫu TOEIC chuẩn</strong>
-                            <small>Bao gồm 3 học phần TOEIC: Văn phòng, Hợp đồng, Mua sắm (45+ từ chuẩn)</small>
-                        </div>
-                    </div>
-
                     <div class="action-card" onclick="exportAllDataJson()">
                         <div class="action-card-icon">💾</div>
                         <div class="action-card-info">

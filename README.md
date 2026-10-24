@@ -69,6 +69,7 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.5.0** | 19/10/2026 | Thanh trạng thái ghim cố định với thanh tiến trình trực quan & phím nhảy nhanh đến câu chưa làm. |
 | **v1.6.0** | 22/10/2026 | Tích hợp Đăng nhập Google & Đồng bộ hóa đám mây 2 chiều tự động qua Firebase Firestore. |
 | **v1.7.0** | 23/10/2026 | Tính năng Đánh dấu từ cần ôn (⭐), đổi màu hàng trực quan, lọc nhanh theo từ sao, Sổ tay từ cần ôn tổng hợp tại Thư viện & tùy chọn thi riêng từ khó. |
+| **v1.8.0** | 24/10/2026 | Khắc phục triệt để lỗi đồng bộ khi đăng nhập máy mới/user mới, loại bỏ hoàn toàn 3 bộ từ TOEIC mặc định & tối ưu quy trình đăng xuất sạch sẽ. |
 
 ---
 

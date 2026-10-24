@@ -2,61 +2,11 @@
 // VOCABMASTER - CORE APPLICATION LOGIC
 // ==========================================================================
 
-// Sample TOEIC Data Presets
-const SAMPLE_PRESETS = [
-    {
-        title: "TOEIC #1: Hợp đồng & Pháp lý (Contracts)",
-        folder: "TOEIC Căn Bản",
-        words: [
-            { eng: "abide by", type: "v", vie: "tuân theo, chịu theo" },
-            { eng: "agreement", type: "n", vie: "hợp đồng, thỏa thuận" },
-            { eng: "assurance", type: "n", vie: "sự cam đoan, bảo đảm" },
-            { eng: "cancellation", type: "n", vie: "sự hủy bỏ" },
-            { eng: "determine", type: "v", vie: "xác định, quyết định" },
-            { eng: "engage", type: "v", vie: "tham gia, cam kết" },
-            { eng: "establish", type: "v", vie: "thiết lập, thành lập" },
-            { eng: "obligate", type: "v", vie: "bắt buộc, ép buộc" },
-            { eng: "party", type: "n", vie: "bên tham gia (hợp đồng)" },
-            { eng: "provision", type: "n", vie: "điều khoản, dự phòng" },
-            { eng: "resolve", type: "v", vie: "giải quyết" },
-            { eng: "specific", type: "adj", vie: "cụ thể, rõ ràng" }
-        ]
-    },
-    {
-        title: "TOEIC #2: Tiếp thị & Khách hàng (Marketing)",
-        folder: "TOEIC Căn Bản",
-        words: [
-            { eng: "attract", type: "v", vie: "thu hút, hấp dẫn" },
-            { eng: "compare", type: "v", vie: "so sánh" },
-            { eng: "competition", type: "n", vie: "sự cạnh tranh" },
-            { eng: "consume", type: "v", vie: "tiêu thụ, tiêu dùng" },
-            { eng: "convince", type: "v", vie: "thuyết phục" },
-            { eng: "currently", type: "adv", vie: "hiện tại, hiện nay" },
-            { eng: "fad", type: "n", vie: "mốt nhất thời, xu hướng ngắn" },
-            { eng: "inspire", type: "v", vie: "truyền cảm hứng" },
-            { eng: "market", type: "v", vie: "tiếp thị, bán ra thị trường" },
-            { eng: "persuasion", type: "n", vie: "sự thuyết phục" },
-            { eng: "productive", type: "adj", vie: "năng suất, hiệu quả" },
-            { eng: "satisfaction", type: "n", vie: "sự thỏa mãn, hài lòng" }
-        ]
-    },
-    {
-        title: "TOEIC #3: Văn phòng & Hội họp (Office Life)",
-        folder: "Môi trường công sở",
-        words: [
-            { eng: "agenda", type: "n", vie: "chương trình nghị sự, lịch trình" },
-            { eng: "colleague", type: "n", vie: "đồng nghiệp" },
-            { eng: "deadline", type: "n", vie: "hạn chót" },
-            { eng: "equipment", type: "n", vie: "trang thiết bị" },
-            { eng: "facilitate", type: "v", vie: "tạo điều kiện thuận lợi" },
-            { eng: "implement", type: "v", vie: "thực thi, triển khai" },
-            { eng: "schedule", type: "n", vie: "lịch trình" },
-            { eng: "supervise", type: "v", vie: "giám sát, quản lý" },
-            { eng: "task", type: "n", vie: "nhiệm vụ, công việc" },
-            { eng: "verify", type: "v", vie: "xác minh, kiểm chứng" }
-        ]
-    }
-];
+// Helper: Detect and exclude deprecated default sample presets
+function isSamplePresetTitle(title) {
+    if (!title) return false;
+    return title.startsWith("TOEIC #1:") || title.startsWith("TOEIC #2:") || title.startsWith("TOEIC #3:") || title === "VOCABULARY TOEIC READING #1";
+}
 
 // Preset Folder Customization Options
 const PRESET_FOLDER_ICONS = [
@@ -89,12 +39,6 @@ function normalizeFolderData(raw) {
             if (item === 'Chưa phân loại') {
                 color = '#64748b';
                 icon = '📁';
-            } else if (item.includes('TOEIC')) {
-                color = '#3b82f6';
-                icon = '📚';
-            } else if (item.includes('công sở') || item.includes('Văn phòng')) {
-                color = '#10b981';
-                icon = '💼';
             }
             return { name: item, color, icon };
         }
@@ -115,21 +59,21 @@ function normalizeFolderData(raw) {
 // 1. STATE & STORAGE MANAGEMENT
 // ==========================================================================
 
-let appData = JSON.parse(localStorage.getItem('toeicAppData'));
-let rawFolderData = JSON.parse(localStorage.getItem('toeicFolderData'));
-
-// Auto-seed sample presets if no existing data
-if (!appData || !Array.isArray(appData) || appData.length === 0) {
-    let oldVocab = JSON.parse(localStorage.getItem('myVocab'));
-    if (oldVocab && oldVocab.length > 0) {
-        appData = [{ title: "VOCABULARY TOEIC READING #1", folder: "Chưa phân loại", words: oldVocab }];
-    } else {
-        appData = JSON.parse(JSON.stringify(SAMPLE_PRESETS));
-    }
+let appData = JSON.parse(localStorage.getItem('toeicAppData')) || [];
+if (Array.isArray(appData)) {
+    // Purge old sample presets if present
+    appData = appData.filter(s => !isSamplePresetTitle(s.title));
+    localStorage.setItem('toeicAppData', JSON.stringify(appData));
+} else {
+    appData = [];
     localStorage.setItem('toeicAppData', JSON.stringify(appData));
 }
 
+let rawFolderData = JSON.parse(localStorage.getItem('toeicFolderData'));
 let folderData = normalizeFolderData(rawFolderData);
+if (folderData.some(f => f.name === 'TOEIC Căn Bản' || f.name === 'Môi trường công sở')) {
+    folderData = folderData.filter(f => f.name !== 'TOEIC Căn Bản' && f.name !== 'Môi trường công sở');
+}
 if (!folderData || folderData.length === 0) {
     const existingFolderNames = new Set(["Chưa phân loại", ...appData.map(s => s.folder).filter(Boolean)]);
     folderData = normalizeFolderData(Array.from(existingFolderNames));
@@ -3461,10 +3405,36 @@ async function loginWithGoogle() {
 async function logoutFromGoogle() {
     if (!firebaseAuth) return;
     try {
-        if (confirm("Bạn có chắc chắn muốn đăng xuất tài khoản Google không? Dữ liệu trên máy vẫn sẽ được lưu trữ cục bộ.")) {
+        if (confirm("Bạn có chắc chắn muốn đăng xuất tài khoản Google không? Dữ liệu của bạn đã được lưu an toàn trên Cloud.")) {
+            if (cloudUnsubscribeListener) {
+                cloudUnsubscribeListener();
+                cloudUnsubscribeListener = null;
+            }
             await firebaseAuth.signOut();
+
+            // Clear local storage and state on logout
+            appData = [];
+            folderData = [{ name: 'Chưa phân loại', color: '#64748b', icon: '📁' }];
+            localStorage.removeItem('toeicAppData');
+            localStorage.removeItem('toeicFolderData');
+            localStorage.removeItem('toeicNavState');
+
+            // Clear study & test cached answers from localStorage
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('toeic_study_') || key.startsWith('toeic_test_') || key.startsWith('studyAnswers_') || key.startsWith('studyResults_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+
+            currentUser = null;
+            isInitialCloudLoad = true;
+            updateAuthUI(null);
+
             const dropdown = document.getElementById('userDropdownMenu');
             if (dropdown) dropdown.style.display = 'none';
+
+            navigateTo('library');
+            renderLibrary();
         }
     } catch (error) {
         console.error("[Logout Error]", error);
@@ -3537,9 +3507,11 @@ function attachCloudRealtimeListener(user) {
 
     cloudUnsubscribeListener = userDocRef.onSnapshot(async (docSnapshot) => {
         if (!docSnapshot.exists) {
-            // First time this user logs in: Push existing local data to cloud
+            // First time this user logs in: Push existing local data to cloud (excluding samples)
             console.log('[Firebase Cloud] Tài khoản mới, đang lưu dữ liệu hiện tại lên Cloud...');
             setSyncStatus('syncing', 'Khởi tạo Cloud...');
+            appData = (appData || []).filter(s => !isSamplePresetTitle(s.title));
+            folderData = normalizeFolderData(folderData).filter(f => f.name !== 'TOEIC Căn Bản' && f.name !== 'Môi trường công sở');
             await triggerCloudSync(true);
         } else {
             const cloudData = docSnapshot.data();
@@ -3549,7 +3521,7 @@ function attachCloudRealtimeListener(user) {
                     setSyncStatus('synced', 'Đã đồng bộ');
                     return;
                 }
-                mergeCloudDataIntoLocal(cloudData);
+                syncFromCloudSourceOfTruth(cloudData);
             }
         }
         isInitialCloudLoad = false;
@@ -3559,59 +3531,36 @@ function attachCloudRealtimeListener(user) {
     });
 }
 
-function mergeCloudDataIntoLocal(cloudData) {
-    let hasChanges = false;
+function syncFromCloudSourceOfTruth(cloudData) {
+    // Cloud is the Single Source of Truth
+    let cleanCloudSets = Array.isArray(cloudData.appData) ? cloudData.appData : [];
+    const originalCount = cleanCloudSets.length;
+    // Filter out any default sample sets if they accidentally synced
+    cleanCloudSets = cleanCloudSets.filter(s => !isSamplePresetTitle(s.title));
 
-    // 1. Merge Sets (appData)
-    if (Array.isArray(cloudData.appData) && cloudData.appData.length > 0) {
-        const localSetMap = new Map();
-        appData.forEach(s => localSetMap.set(s.title, s));
+    let cleanCloudFolders = Array.isArray(cloudData.folderData) ? cloudData.folderData : [];
+    cleanCloudFolders = cleanCloudFolders.filter(f => f.name !== 'TOEIC Căn Bản' && f.name !== 'Môi trường công sở');
+    cleanCloudFolders = normalizeFolderData(cleanCloudFolders);
 
-        cloudData.appData.forEach(cloudSet => {
-            const localSet = localSetMap.get(cloudSet.title);
-            if (!localSet) {
-                appData.push(cloudSet);
-                hasChanges = true;
-            } else {
-                // Merge words in set
-                const wordMap = new Map();
-                (localSet.words || []).forEach(w => wordMap.set((w.word || '').trim().toLowerCase(), w));
-                let wordsAdded = false;
-                (cloudSet.words || []).forEach(w => {
-                    const key = (w.word || '').trim().toLowerCase();
-                    if (!wordMap.has(key)) {
-                        localSet.words.push(w);
-                        wordsAdded = true;
-                    }
-                });
-                if (wordsAdded) hasChanges = true;
-            }
-        });
+    appData = cleanCloudSets;
+    folderData = cleanCloudFolders;
+
+    localStorage.setItem('toeicAppData', JSON.stringify(appData));
+    localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
+
+    console.log('[Firebase Cloud] Đã đồng bộ dữ liệu sạch từ Cloud Firestore.');
+    setSyncStatus('synced', 'Đã đồng bộ');
+
+    // If cloud had polluted sample sets, clean the cloud document permanently
+    if (cleanCloudSets.length !== originalCount) {
+        console.log('[Firebase Cloud] Tự động xóa các học phần mẫu cũ khỏi Cloud Firestore...');
+        triggerCloudSync(true);
     }
 
-    // 2. Merge Folders (folderData)
-    if (Array.isArray(cloudData.folderData) && cloudData.folderData.length > 0) {
-        const localFolderNames = new Set(folderData.map(f => f.name));
-        cloudData.folderData.forEach(cloudFolder => {
-            if (!localFolderNames.has(cloudFolder.name)) {
-                folderData.push(cloudFolder);
-                hasChanges = true;
-            }
-        });
-    }
-
-    if (hasChanges || isInitialCloudLoad) {
-        localStorage.setItem('toeicAppData', JSON.stringify(appData));
-        localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
-        console.log('[Firebase Cloud] Đã đồng bộ thành công dữ liệu từ Cloud Firestore.');
-        setSyncStatus('synced', 'Đã đồng bộ');
-        if (currentView === 'library') {
-            renderLibrary();
-        } else if (currentView === 'detail') {
-            renderStudyMode();
-        }
-    } else {
-        setSyncStatus('synced', 'Đã đồng bộ');
+    if (currentView === 'library') {
+        renderLibrary();
+    } else if (currentView === 'detail') {
+        renderSetDetail();
     }
 }
 
