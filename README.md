@@ -54,6 +54,13 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
    - Thẻ thông minh **"⭐ Sổ tay các từ cần ôn"** tự động tổng hợp tất cả từ sao từ mọi học phần ở Thư viện.
    - Tùy chọn thi trắc nghiệm độc quyền: *"Chỉ kiểm tra các từ đã đánh dấu ⭐"*.
 
+10. **Chọn Nhiều Hàng & Xóa Kết Quả Linh Hoạt Như Google Sheets (Multi-Row Selection & Result Clearing)**
+   - Chọn hàng từ nhanh chóng bằng cách bấm vào số STT, kéo chuột qua nhiều dòng, hoặc giữ `Shift + Click` (chọn vùng liên tục) và `Ctrl + Click` (chọn rời rạc).
+   - Bấm vào tiêu đề cột `STT` để chọn hoặc bỏ chọn toàn bộ các hàng đang hiển thị.
+   - Nhấn phím <kbd>Delete</kbd> hoặc <kbd>Backspace</kbd> (hoặc nút trên thanh công cụ nổi) để xóa kết quả các hàng đang chọn trong tích tắc.
+   - **Bảo toàn từ vựng tuyệt đối:** Chỉ xóa câu trả lời và kết quả đánh giá (Đúng/Sai) để luyện tập lại từ đầu, tuyệt đối **không xóa** từ vựng hay làm mất dữ liệu học phần.
+   - Tích hợp phím tắt nhanh <kbd>Alt + Delete</kbd> khi đang gõ hoặc nút xóa trực tiếp `✕` bên cạnh kết quả để xóa lại từng câu đơn lẻ.
+
 ---
 
 ## 🏷️ Lịch Sử Phiên Bản (Version History)
@@ -70,6 +77,7 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.6.0** | 22/10/2026 | Tích hợp Đăng nhập Google & Đồng bộ hóa đám mây 2 chiều tự động qua Firebase Firestore. |
 | **v1.7.0** | 23/10/2026 | Tính năng Đánh dấu từ cần ôn (⭐), đổi màu hàng trực quan, lọc nhanh theo từ sao, Sổ tay từ cần ôn tổng hợp tại Thư viện & tùy chọn thi riêng từ khó. |
 | **v1.8.0** | 24/10/2026 | Khắc phục triệt để lỗi đồng bộ khi đăng nhập máy mới/user mới, loại bỏ hoàn toàn 3 bộ từ TOEIC mặc định & tối ưu quy trình đăng xuất sạch sẽ. |
+| **v1.9.0** | 24/10/2026 | Tính năng chọn nhiều hàng từ vựng & xóa kết quả học tập linh hoạt như Google Sheets (phím Delete/Backspace, kéo chuột, Shift/Ctrl+Click, nút xóa đơn lẻ ✕), bảo toàn nguyên vẹn từ vựng. |
 
 ---
 

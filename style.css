@@ -3058,4 +3058,213 @@ tr.row-starred .answer-input:not(:focus) {
     padding: 8px 12px;
 }
 
+/* ========================================================
+   STUDY ROW SELECTION & GOOGLE SHEETS-LIKE RESULT CLEARING
+   ======================================================== */
+
+/* STT Header clickable styling */
+.stt-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.stt-header:hover {
+    background-color: var(--bg-surface-elevated) !important;
+    color: var(--primary) !important;
+}
+.stt-header.all-selected {
+    color: var(--primary) !important;
+}
+
+/* STT Cell styling like Google Sheets Row Header */
+.stt-cell {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.stt-cell:hover {
+    background-color: rgba(99, 102, 241, 0.15) !important;
+    color: var(--primary) !important;
+}
+.stt-check-indicator {
+    display: none;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 2px;
+}
+.row-selected .stt-check-indicator {
+    display: inline-block;
+    color: #4f46e5;
+}
+[data-theme="dark"] .row-selected .stt-check-indicator {
+    color: #818cf8;
+}
+
+/* Row selection highlighting (Dark Theme) */
+[data-theme="dark"] tr.row-selected {
+    background-color: rgba(99, 102, 241, 0.16) !important;
+    box-shadow: inset 4px 0 0 #6366f1;
+}
+[data-theme="dark"] tr.row-selected:hover {
+    background-color: rgba(99, 102, 241, 0.22) !important;
+}
+[data-theme="dark"] tr.row-selected.row-starred {
+    background-color: rgba(245, 158, 11, 0.16) !important;
+    box-shadow: inset 4px 0 0 #f59e0b, inset 8px 0 0 #6366f1;
+}
+[data-theme="dark"] tr.row-selected.row-starred:hover {
+    background-color: rgba(245, 158, 11, 0.22) !important;
+}
+
+/* Row selection highlighting (Light Theme) */
+[data-theme="light"] tr.row-selected {
+    background-color: #eef2ff !important;
+    box-shadow: inset 4px 0 0 #4f46e5;
+}
+[data-theme="light"] tr.row-selected:hover {
+    background-color: #e0e7ff !important;
+}
+[data-theme="light"] tr.row-selected.row-starred {
+    background-color: #fef3c7 !important;
+    box-shadow: inset 4px 0 0 #f59e0b, inset 8px 0 0 #4f46e5;
+}
+[data-theme="light"] tr.row-selected.row-starred:hover {
+    background-color: #fde68a !important;
+}
+
+/* Row selected input border subtle accent */
+tr.row-selected .answer-input:not(:focus) {
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+/* Floating / Docked Selection Action Bar */
+.study-selection-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    margin: 12px 0 16px 0;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(79, 70, 229, 0.06));
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    animation: slideDownSelection 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideDownSelection {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.selection-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.selection-badge-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #6366f1;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+}
+.selection-text {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-main);
+}
+.selection-hint-badge {
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.selection-hint-badge kbd,
+.btn-clear-selected kbd {
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 11px;
+}
+[data-theme="light"] .selection-hint-badge kbd,
+[data-theme="light"] .btn-clear-selected kbd {
+    background: rgba(255, 255, 255, 0.35);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+.selection-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-clear-selected {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-clear-selected:hover {
+    background: #dc2626 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+}
+
+/* Result cell quick clear button */
+.result-cell-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+.btn-clear-single-res {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    opacity: 0.5;
+    padding: 0;
+    line-height: 1;
+}
+.btn-clear-single-res:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    transform: scale(1.15);
+}
+
+
 

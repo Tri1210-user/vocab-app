@@ -478,14 +478,16 @@
                             <span>•</span>
                             <span><kbd>Alt+S</kbd> Đánh dấu ⭐</span>
                             <span>•</span>
+                            <span><kbd>Delete</kbd> Xóa kết quả chọn</span>
+                            <span>•</span>
                             <span><kbd>Tab</kbd> Phát âm</span>
                         </div>
                         <button id="btnToggleSpeak" class="btn btn-outline btn-sm" onclick="toggleAutoSpeak()">
                             <span id="speakIcon">🔊</span>
                             <span id="speakStatusText">Tự động đọc: BẬT</span>
                         </button>
-                        <button class="btn btn-ghost btn-sm" onclick="clearStudyAnswers()" title="Xóa toàn bộ câu trả lời để làm lại">
-                            🧹 Xóa kết quả
+                        <button class="btn btn-ghost btn-sm" onclick="clearStudyAnswers()" title="Xóa toàn bộ câu trả lời của bài học để làm lại">
+                            🧹 Xóa tất cả
                         </button>
                     </div>
 
@@ -496,12 +498,29 @@
                     </div>
                 </div>
 
+                <!-- Floating/Docked Multi-Row Selection Action Bar (Google Sheets style) -->
+                <div id="studySelectionBar" class="study-selection-bar" style="display: none;">
+                    <div class="selection-bar-left">
+                        <span class="selection-badge-icon">✓</span>
+                        <span id="studySelectedCountText" class="selection-text">Đã chọn 0 hàng</span>
+                        <span class="selection-hint-badge">Nhấn <kbd>Delete</kbd> để xóa kết quả</span>
+                    </div>
+                    <div class="selection-bar-actions">
+                        <button class="btn btn-sm btn-clear-selected" onclick="clearSelectedRowsResults()" title="Xóa kết quả các hàng đang chọn (Phím Delete hoặc Backspace)">
+                            🧹 Xóa kết quả (<kbd>Delete</kbd>)
+                        </button>
+                        <button class="btn btn-sm btn-ghost" onclick="clearRowSelection()" title="Bỏ chọn (Phím Esc)">
+                            ✕ Bỏ chọn (<kbd>Esc</kbd>)
+                        </button>
+                    </div>
+                </div>
+
                 <div class="table-container">
                     <table class="modern-table" id="vocabTable">
                         <thead>
                             <tr>
                                 <th style="width: 44px; text-align: center;" title="Đánh dấu từ cần ôn (Alt+S)">⭐</th>
-                                <th style="width: 46px;">STT</th>
+                                <th class="stt-header" style="width: 52px; text-align: center;" title="Bấm để chọn tất cả hoặc bỏ chọn tất cả các dòng" onclick="toggleSelectAllStudyRows()">STT</th>
                                 <th style="width: 24%;">Từ vựng (English)</th>
                                 <th style="width: 13%;">Loại từ</th>
                                 <th>Nghĩa tiếng Việt (Gõ đáp án rồi bấm Enter)</th>

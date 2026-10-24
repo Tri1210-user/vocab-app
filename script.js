@@ -1439,6 +1439,7 @@ window.openSet = function(index) {
 };
 
 window.goBackFromSetDetail = function() {
+    if (typeof clearRowSelection === 'function') clearRowSelection(false);
     navigateTo('library');
     if (currentOpenedFolder) {
         switchLibraryTab('folders');
@@ -1481,6 +1482,7 @@ function renderSetDetail() {
 }
 
 window.switchSetTab = function(tabName) {
+    if (typeof clearRowSelection === 'function') clearRowSelection(false);
     currentSetTab = tabName;
     document.getElementById('setTabStudy').classList.toggle('active', tabName === 'study');
     document.getElementById('setTabManage').classList.toggle('active', tabName === 'manage');
@@ -1602,6 +1604,7 @@ function clearStudyAnswersForSet(index) {
 
 // --- STARRED FILTER & STUDY CONTROLS ---
 window.setStudyFilter = function(filterType) {
+    if (typeof clearRowSelection === 'function') clearRowSelection(false);
     currentStudyFilter = filterType;
     const btnAll = document.getElementById('filterAllWordsBtn');
     const btnStarred = document.getElementById('filterStarredWordsBtn');
@@ -1665,6 +1668,13 @@ window.toggleStarWord = function(index, event) {
     }
 };
 
+// --- ROW SELECTION & MULTI-ROW RESULT CLEARING STATE ---
+let selectedStudyIndices = new Set();
+let lastSelectedDisplayIndex = null;
+let isSTTDragSelecting = false;
+let dragStartIndex = null;
+let wasSTTDragged = false;
+
 // --- STUDY TAB (TABLE TYPING PRACTICE) ---
 function renderStudyTable() {
     const set = getCurrentSet();
@@ -1678,6 +1688,7 @@ function renderStudyTable() {
             Chưa có từ vựng nào trong phần này.
         </td></tr>`;
         updateStudyStats();
+        updateRowSelectionUI();
         return;
     }
 
@@ -1694,7 +1705,15 @@ function renderStudyTable() {
             <button class="btn btn-outline btn-sm" style="margin-top: 14px;" onclick="setStudyFilter('all')">Xem tất cả từ</button>
         </td></tr>`;
         updateStudyStats();
+        updateRowSelectionUI();
         return;
+    }
+
+    // Clean up any stale selected indices out of bounds
+    for (const idx of selectedStudyIndices) {
+        if (idx >= set.words.length) {
+            selectedStudyIndices.delete(idx);
+        }
     }
 
     const savedAnswers = loadStudyAnswers(currentSetIndex);
@@ -1704,19 +1723,32 @@ function renderStudyTable() {
         const oldAns = savedAnswers[originalIndex] || '';
         const oldRes = savedResults[originalIndex] || null;
         const isStarred = !!item.starred;
+        const isSelected = selectedStudyIndices.has(originalIndex);
 
         let inputClass = 'answer-input';
         let resultHtml = '';
 
         if (oldRes === 'correct') {
             inputClass += ' input-correct';
-            resultHtml = `<span class="result-correct">✅ Đúng</span>`;
+            resultHtml = `
+                <div class="result-cell-content">
+                    <span class="result-correct">✅ Đúng</span>
+                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${originalIndex}, event)" title="Xóa kết quả dòng này">✕</button>
+                </div>`;
         } else if (oldRes === 'wrong') {
             inputClass += ' input-wrong';
-            resultHtml = `<span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(item.vie)})</span>`;
+            resultHtml = `
+                <div class="result-cell-content">
+                    <span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(item.vie)})</span>
+                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${originalIndex}, event)" title="Xóa kết quả dòng này">✕</button>
+                </div>`;
         } else if (oldRes === 'revealed') {
             inputClass += ' input-revealed';
-            resultHtml = `<span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(item.vie)})</span>`;
+            resultHtml = `
+                <div class="result-cell-content">
+                    <span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(item.vie)})</span>
+                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${originalIndex}, event)" title="Xóa kết quả dòng này">✕</button>
+                </div>`;
         } else {
             resultHtml = `<button class="btn-show-hint" onclick="revealStudyAnswer(${originalIndex})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
         }
@@ -1725,7 +1757,11 @@ function renderStudyTable() {
         if (isStarred) {
             tr.classList.add('row-starred');
         }
+        if (isSelected) {
+            tr.classList.add('row-selected');
+        }
         tr.setAttribute('data-word-index', originalIndex);
+        tr.setAttribute('data-display-index', displayIndex);
 
         tr.innerHTML = `
             <td class="star-cell" style="text-align: center;">
@@ -1733,7 +1769,16 @@ function renderStudyTable() {
                     ${isStarred ? '⭐' : '☆'}
                 </button>
             </td>
-            <td style="color: var(--text-muted); font-weight: 600;">${displayIndex + 1}</td>
+            <td class="stt-cell" 
+                data-display-index="${displayIndex}" 
+                data-word-index="${originalIndex}" 
+                onclick="handleStudyRowClick(${displayIndex}, ${originalIndex}, event)"
+                onmousedown="handleStudyRowMouseDown(${displayIndex}, ${originalIndex}, event)"
+                onmouseenter="handleStudyRowMouseEnter(${displayIndex}, ${originalIndex}, event)"
+                title="Bấm để chọn dòng (Shift+Click: chọn vùng, Kéo chuột: chọn nhiều dòng)">
+                <span class="stt-num">${displayIndex + 1}</span>
+                <span class="stt-check-indicator">✓</span>
+            </td>
             <td>
                 <span class="word-prompt">
                     ${escapeHtml(item.eng)}
@@ -1753,6 +1798,7 @@ function renderStudyTable() {
 
     setupStudyEvents();
     updateStudyStats();
+    updateRowSelectionUI();
 }
 
 function checkStudyScore(input, index) {
@@ -1777,14 +1823,22 @@ function checkStudyScore(input, index) {
     } else if (isAnswerFuzzyMatch(userAnswer, correctAnswer)) {
         savedResults[index] = 'correct';
         if (resultCell) {
-            resultCell.innerHTML = `<span class="result-correct">✅ Đúng</span>`;
+            resultCell.innerHTML = `
+                <div class="result-cell-content">
+                    <span class="result-correct">✅ Đúng</span>
+                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${index}, event)" title="Xóa kết quả dòng này">✕</button>
+                </div>`;
         }
         input.classList.add('input-correct');
         input.classList.remove('input-wrong', 'input-revealed');
     } else {
         savedResults[index] = 'wrong';
         if (resultCell) {
-            resultCell.innerHTML = `<span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(set.words[index].vie)})</span>`;
+            resultCell.innerHTML = `
+                <div class="result-cell-content">
+                    <span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(set.words[index].vie)})</span>
+                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${index}, event)" title="Xóa kết quả dòng này">✕</button>
+                </div>`;
         }
         input.classList.add('input-wrong');
         input.classList.remove('input-correct', 'input-revealed');
@@ -1809,7 +1863,11 @@ window.revealStudyAnswer = function(index) {
     saveStudyResults(currentSetIndex, savedResults);
 
     if (resultCell) {
-        resultCell.innerHTML = `<span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(set.words[index].vie)})</span>`;
+        resultCell.innerHTML = `
+            <div class="result-cell-content">
+                <span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(set.words[index].vie)})</span>
+                <button class="btn-clear-single-res" onclick="clearSingleRowResult(${index}, event)" title="Xóa kết quả dòng này">✕</button>
+            </div>`;
     }
 
     if (input) {
@@ -1830,6 +1888,9 @@ function setupStudyEvents() {
         const wordIndex = parseInt(input.getAttribute('data-index'), 10);
 
         input.addEventListener('focus', () => {
+            if (selectedStudyIndices.size > 0) {
+                clearRowSelection(false);
+            }
             if (isAutoSpeakEnabled && set.words[wordIndex]) {
                 speakWord(set.words[wordIndex].eng);
             }
@@ -1863,21 +1924,28 @@ function setupStudyEvents() {
                 return;
             }
 
-            // B. Shortcut to reveal answer: F2, Ctrl+Enter, Alt+Enter, or Alt+H
+            // B. Shortcut to clear current row: Alt + Delete or Ctrl + Delete
+            if ((e.altKey || e.ctrlKey) && (e.key === 'Delete' || e.key === 'Backspace')) {
+                e.preventDefault();
+                clearSingleRowResult(wordIndex);
+                return;
+            }
+
+            // C. Shortcut to reveal answer: F2, Ctrl+Enter, Alt+Enter, or Alt+H
             if (e.key === 'F2' || ((e.ctrlKey || e.altKey) && e.key === 'Enter') || (e.altKey && (e.key === 'h' || e.key === 'H'))) {
                 e.preventDefault();
                 revealStudyAnswer(wordIndex);
                 return;
             }
 
-            // C. Tab: Pronounce English word
+            // D. Tab: Pronounce English word
             if (e.key === 'Tab') {
                 e.preventDefault();
                 if (set.words[wordIndex]) speakWord(set.words[wordIndex].eng);
                 return;
             }
 
-            // D. Enter: Submit answer & validate ONLY when Enter is pressed
+            // E. Enter: Submit answer & validate ONLY when Enter is pressed
             if (e.key === 'Enter') {
                 e.preventDefault();
                 checkStudyScore(input, wordIndex);
@@ -1888,7 +1956,7 @@ function setupStudyEvents() {
                 return;
             }
 
-            // E. Arrow Up / Down navigation
+            // F. Arrow Up / Down navigation
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 if (seqIndex + 1 < inputs.length) inputs[seqIndex + 1].focus();
@@ -1957,7 +2025,221 @@ window.scrollToNextUnanswered = function() {
     }
 };
 
+// --- ROW SELECTION & GOOGLE SHEETS-LIKE RESULT CLEARING IMPLEMENTATION ---
+
+window.handleStudyRowClick = function(displayIndex, originalIndex, event) {
+    if (wasSTTDragged) {
+        wasSTTDragged = false;
+        return;
+    }
+
+    if (event.shiftKey && lastSelectedDisplayIndex !== null) {
+        // Range selection between lastSelectedDisplayIndex and displayIndex
+        const visibleRows = Array.from(document.querySelectorAll('#vocabBody tr[data-word-index]'));
+        const minIdx = Math.min(lastSelectedDisplayIndex, displayIndex);
+        const maxIdx = Math.max(lastSelectedDisplayIndex, displayIndex);
+
+        visibleRows.forEach(row => {
+            const dIdx = parseInt(row.getAttribute('data-display-index'), 10);
+            const wIdx = parseInt(row.getAttribute('data-word-index'), 10);
+            if (dIdx >= minIdx && dIdx <= maxIdx) {
+                selectedStudyIndices.add(wIdx);
+            }
+        });
+    } else if (event.ctrlKey || event.metaKey) {
+        // Toggle single row
+        if (selectedStudyIndices.has(originalIndex)) {
+            selectedStudyIndices.delete(originalIndex);
+        } else {
+            selectedStudyIndices.add(originalIndex);
+        }
+        lastSelectedDisplayIndex = displayIndex;
+    } else {
+        // Single row selection or toggle
+        if (selectedStudyIndices.size === 1 && selectedStudyIndices.has(originalIndex)) {
+            selectedStudyIndices.clear();
+            lastSelectedDisplayIndex = null;
+        } else {
+            selectedStudyIndices.clear();
+            selectedStudyIndices.add(originalIndex);
+            lastSelectedDisplayIndex = displayIndex;
+        }
+    }
+    updateRowSelectionUI();
+};
+
+window.handleStudyRowMouseDown = function(displayIndex, originalIndex, event) {
+    if (event.button !== 0) return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey) return;
+
+    isSTTDragSelecting = true;
+    dragStartIndex = displayIndex;
+    wasSTTDragged = false;
+};
+
+window.handleStudyRowMouseEnter = function(displayIndex, originalIndex, event) {
+    if (!isSTTDragSelecting || dragStartIndex === null) return;
+    if (displayIndex !== dragStartIndex) {
+        wasSTTDragged = true;
+    }
+
+    const sel = window.getSelection();
+    if (sel) sel.removeAllRanges();
+
+    const visibleRows = Array.from(document.querySelectorAll('#vocabBody tr[data-word-index]'));
+    const minIdx = Math.min(dragStartIndex, displayIndex);
+    const maxIdx = Math.max(dragStartIndex, displayIndex);
+
+    selectedStudyIndices.clear();
+    visibleRows.forEach(row => {
+        const dIdx = parseInt(row.getAttribute('data-display-index'), 10);
+        const wIdx = parseInt(row.getAttribute('data-word-index'), 10);
+        if (dIdx >= minIdx && dIdx <= maxIdx) {
+            selectedStudyIndices.add(wIdx);
+        }
+    });
+    lastSelectedDisplayIndex = displayIndex;
+    updateRowSelectionUI();
+};
+
+document.addEventListener('mouseup', () => {
+    if (isSTTDragSelecting) {
+        isSTTDragSelecting = false;
+        dragStartIndex = null;
+    }
+});
+
+window.toggleSelectAllStudyRows = function() {
+    const visibleRows = Array.from(document.querySelectorAll('#vocabBody tr[data-word-index]'));
+    if (visibleRows.length === 0) return;
+
+    const allSelected = visibleRows.every(row => {
+        const wIdx = parseInt(row.getAttribute('data-word-index'), 10);
+        return selectedStudyIndices.has(wIdx);
+    });
+
+    if (allSelected) {
+        selectedStudyIndices.clear();
+        lastSelectedDisplayIndex = null;
+    } else {
+        visibleRows.forEach(row => {
+            const wIdx = parseInt(row.getAttribute('data-word-index'), 10);
+            selectedStudyIndices.add(wIdx);
+        });
+    }
+    updateRowSelectionUI();
+};
+
+window.updateRowSelectionUI = function() {
+    const visibleRows = document.querySelectorAll('#vocabBody tr[data-word-index]');
+    let count = 0;
+
+    visibleRows.forEach(row => {
+        const wIdx = parseInt(row.getAttribute('data-word-index'), 10);
+        const isSelected = selectedStudyIndices.has(wIdx);
+        row.classList.toggle('row-selected', isSelected);
+        if (isSelected) count++;
+    });
+
+    const bar = document.getElementById('studySelectionBar');
+    const countText = document.getElementById('studySelectedCountText');
+    const sttHeader = document.querySelector('.stt-header');
+
+    if (bar && countText) {
+        if (count > 0) {
+            bar.style.display = 'flex';
+            countText.textContent = `Đã chọn ${count} hàng`;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    if (sttHeader) {
+        const totalVisible = visibleRows.length;
+        if (totalVisible > 0 && count === totalVisible) {
+            sttHeader.title = "Bấm để bỏ chọn tất cả các dòng";
+            sttHeader.classList.add('all-selected');
+        } else {
+            sttHeader.title = "Bấm để chọn tất cả hoặc bỏ chọn tất cả các dòng";
+            sttHeader.classList.remove('all-selected');
+        }
+    }
+};
+
+window.clearRowSelection = function(shouldUpdate = true) {
+    selectedStudyIndices.clear();
+    lastSelectedDisplayIndex = null;
+    if (shouldUpdate) {
+        updateRowSelectionUI();
+    }
+};
+
+window.clearSingleRowResult = function(wordIndex, event) {
+    if (event) event.stopPropagation();
+    clearStudyResultsForIndices([wordIndex]);
+};
+
+window.clearStudyResultsForIndices = function(indices) {
+    if (!indices || indices.length === 0) return;
+    const indexArray = Array.isArray(indices) ? indices : Array.from(indices);
+    if (indexArray.length === 0) return;
+
+    const savedAnswers = loadStudyAnswers(currentSetIndex);
+    const savedResults = loadStudyResults(currentSetIndex);
+
+    indexArray.forEach(wordIndex => {
+        savedAnswers[wordIndex] = '';
+        savedResults[wordIndex] = null;
+
+        const input = document.querySelector(`#vocabTable .answer-input[data-index="${wordIndex}"]`);
+        if (input) {
+            input.value = '';
+            input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
+        }
+
+        const resultCell = document.querySelector(`.result-cell[data-result-for="${wordIndex}"]`);
+        if (resultCell) {
+            resultCell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${wordIndex})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+        }
+    });
+
+    saveStudyAnswers(currentSetIndex, savedAnswers);
+    saveStudyResults(currentSetIndex, savedResults);
+    updateStudyStats();
+
+    showToast(`Đã xóa kết quả của ${indexArray.length} hàng từ đã chọn.`);
+};
+
+window.clearSelectedRowsResults = function() {
+    if (selectedStudyIndices.size === 0) return;
+    const toClear = Array.from(selectedStudyIndices);
+    clearStudyResultsForIndices(toClear);
+    updateRowSelectionUI();
+};
+
+// Global Keyboard Handler for Row Selection Delete / Escape
+document.addEventListener('keydown', (e) => {
+    // 1. Delete or Backspace when rows are selected
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedStudyIndices.size > 0) {
+        const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        const isEditingNonStudyInput = (activeTag === 'input' || activeTag === 'textarea') && !document.activeElement.classList.contains('answer-input');
+        if (!isEditingNonStudyInput) {
+            e.preventDefault();
+            clearSelectedRowsResults();
+            return;
+        }
+    }
+
+    // 2. Escape clears row selection
+    if (e.key === 'Escape' && selectedStudyIndices.size > 0) {
+        e.preventDefault();
+        clearRowSelection();
+        return;
+    }
+});
+
 window.clearStudyAnswers = function() {
+    clearRowSelection(true);
     document.querySelectorAll('#vocabTable .answer-input').forEach(input => {
         input.value = '';
         input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
@@ -1969,6 +2251,7 @@ window.clearStudyAnswers = function() {
     });
     clearStudyAnswersForSet(currentSetIndex);
     updateStudyStats();
+    showToast('Đã xóa tất cả kết quả của bài học.');
 };
 
 window.toggleAutoSpeak = function() {
