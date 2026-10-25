@@ -3062,6 +3062,22 @@ tr.row-starred .answer-input:not(:focus) {
    STUDY ROW SELECTION & GOOGLE SHEETS-LIKE RESULT CLEARING
    ======================================================== */
 
+/* Table Rows Interactive Selection (Click or drag anywhere in row) */
+#vocabBody tr {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.12s ease;
+}
+
+#vocabBody tr .answer-input {
+    user-select: text;
+    cursor: text;
+}
+
+#vocabBody tr button {
+    cursor: pointer;
+}
+
 /* STT Header clickable styling */
 .stt-header {
     cursor: pointer;

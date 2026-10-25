@@ -1671,9 +1671,9 @@ window.toggleStarWord = function(index, event) {
 // --- ROW SELECTION & MULTI-ROW RESULT CLEARING STATE ---
 let selectedStudyIndices = new Set();
 let lastSelectedDisplayIndex = null;
-let isSTTDragSelecting = false;
+let isRowDragSelecting = false;
 let dragStartIndex = null;
-let wasSTTDragged = false;
+let wasRowDragged = false;
 
 // --- STUDY TAB (TABLE TYPING PRACTICE) ---
 function renderStudyTable() {
@@ -1763,19 +1763,18 @@ function renderStudyTable() {
         tr.setAttribute('data-word-index', originalIndex);
         tr.setAttribute('data-display-index', displayIndex);
 
+        // Click or drag anywhere on the row to select / drag-select
+        tr.addEventListener('mousedown', (e) => handleStudyRowMouseDown(displayIndex, originalIndex, e));
+        tr.addEventListener('mouseenter', (e) => handleStudyRowMouseEnter(displayIndex, originalIndex, e));
+        tr.addEventListener('click', (e) => handleStudyRowClick(displayIndex, originalIndex, e));
+
         tr.innerHTML = `
             <td class="star-cell" style="text-align: center;">
                 <button class="star-btn ${isStarred ? 'active' : ''}" onclick="toggleStarWord(${originalIndex}, event)" title="${isStarred ? 'Bỏ đánh dấu (Alt+S)' : 'Đánh dấu cần ôn (Alt+S)'}">
                     ${isStarred ? '⭐' : '☆'}
                 </button>
             </td>
-            <td class="stt-cell" 
-                data-display-index="${displayIndex}" 
-                data-word-index="${originalIndex}" 
-                onclick="handleStudyRowClick(${displayIndex}, ${originalIndex}, event)"
-                onmousedown="handleStudyRowMouseDown(${displayIndex}, ${originalIndex}, event)"
-                onmouseenter="handleStudyRowMouseEnter(${displayIndex}, ${originalIndex}, event)"
-                title="Bấm để chọn dòng (Shift+Click: chọn vùng, Kéo chuột: chọn nhiều dòng)">
+            <td class="stt-cell" data-display-index="${displayIndex}" data-word-index="${originalIndex}">
                 <span class="stt-num">${displayIndex + 1}</span>
                 <span class="stt-check-indicator">✓</span>
             </td>
@@ -2028,8 +2027,12 @@ window.scrollToNextUnanswered = function() {
 // --- ROW SELECTION & GOOGLE SHEETS-LIKE RESULT CLEARING IMPLEMENTATION ---
 
 window.handleStudyRowClick = function(displayIndex, originalIndex, event) {
-    if (wasSTTDragged) {
-        wasSTTDragged = false;
+    // If clicked on an interactive control (input or button), let that control handle its action
+    if (event.target.closest('button, input, a, select')) return;
+
+    // If mouse was dragged across rows, dragging already set the selection
+    if (wasRowDragged) {
+        wasRowDragged = false;
         return;
     }
 
@@ -2055,11 +2058,13 @@ window.handleStudyRowClick = function(displayIndex, originalIndex, event) {
         }
         lastSelectedDisplayIndex = displayIndex;
     } else {
-        // Single row selection or toggle
-        if (selectedStudyIndices.size === 1 && selectedStudyIndices.has(originalIndex)) {
-            selectedStudyIndices.clear();
-            lastSelectedDisplayIndex = null;
+        // Single row click without modifier:
+        // If clicking on an already selected row, deselect it (support "bấm bất cứ đâu để hủy chọn")
+        if (selectedStudyIndices.has(originalIndex)) {
+            clearRowSelection();
+            return;
         } else {
+            // Select this row
             selectedStudyIndices.clear();
             selectedStudyIndices.add(originalIndex);
             lastSelectedDisplayIndex = displayIndex;
@@ -2069,18 +2074,20 @@ window.handleStudyRowClick = function(displayIndex, originalIndex, event) {
 };
 
 window.handleStudyRowMouseDown = function(displayIndex, originalIndex, event) {
-    if (event.button !== 0) return;
+    if (event.button !== 0) return; // Only left mouse button
+    // Ignore clicks on buttons, inputs, links
+    if (event.target.closest('button, input, a, select')) return;
     if (event.shiftKey || event.ctrlKey || event.metaKey) return;
 
-    isSTTDragSelecting = true;
+    isRowDragSelecting = true;
     dragStartIndex = displayIndex;
-    wasSTTDragged = false;
+    wasRowDragged = false;
 };
 
 window.handleStudyRowMouseEnter = function(displayIndex, originalIndex, event) {
-    if (!isSTTDragSelecting || dragStartIndex === null) return;
+    if (!isRowDragSelecting || dragStartIndex === null) return;
     if (displayIndex !== dragStartIndex) {
-        wasSTTDragged = true;
+        wasRowDragged = true;
     }
 
     const sel = window.getSelection();
@@ -2103,10 +2110,41 @@ window.handleStudyRowMouseEnter = function(displayIndex, originalIndex, event) {
 };
 
 document.addEventListener('mouseup', () => {
-    if (isSTTDragSelecting) {
-        isSTTDragSelecting = false;
+    if (isRowDragSelecting) {
+        isRowDragSelecting = false;
         dragStartIndex = null;
+        setTimeout(() => { wasRowDragged = false; }, 50);
     }
+});
+
+// Click anywhere to deselect ("có thể bấm bất cứ đâu để hủy chọn")
+document.addEventListener('mousedown', (e) => {
+    if (selectedStudyIndices.size === 0) return;
+
+    // Do NOT deselect if clicking inside the floating selection bar (e.g. clicking "Xóa kết quả" or "Bỏ chọn")
+    if (e.target.closest('#studySelectionBar')) return;
+
+    // Do NOT deselect if clicking the STT header
+    if (e.target.closest('.stt-header')) return;
+
+    // If clicking an input field: deselect immediately so user can type freely
+    if (e.target.closest('input')) {
+        clearRowSelection();
+        return;
+    }
+
+    // If clicking a button in a row (e.g. star, speak, hint, delete single): deselect rows
+    if (e.target.closest('button')) {
+        clearRowSelection();
+        return;
+    }
+
+    // If clicking inside a row (not on input or button), handleStudyRowMouseDown & handleStudyRowClick will handle it
+    const row = e.target.closest('#vocabBody tr[data-word-index]');
+    if (row) return;
+
+    // Clicked anywhere outside the rows: deselect all!
+    clearRowSelection();
 });
 
 window.toggleSelectAllStudyRows = function() {
@@ -2177,6 +2215,10 @@ window.clearRowSelection = function(shouldUpdate = true) {
 window.clearSingleRowResult = function(wordIndex, event) {
     if (event) event.stopPropagation();
     clearStudyResultsForIndices([wordIndex]);
+    if (selectedStudyIndices.has(wordIndex)) {
+        selectedStudyIndices.delete(wordIndex);
+        updateRowSelectionUI();
+    }
 };
 
 window.clearStudyResultsForIndices = function(indices) {
@@ -2210,11 +2252,12 @@ window.clearStudyResultsForIndices = function(indices) {
     showToast(`Đã xóa kết quả của ${indexArray.length} hàng từ đã chọn.`);
 };
 
+// Clear selected rows and automatically deselect! ("sau khi xóa thì hãy tự động bỏ chọn")
 window.clearSelectedRowsResults = function() {
     if (selectedStudyIndices.size === 0) return;
     const toClear = Array.from(selectedStudyIndices);
     clearStudyResultsForIndices(toClear);
-    updateRowSelectionUI();
+    clearRowSelection(); // Tự động bỏ chọn ngay sau khi xóa!
 };
 
 // Global Keyboard Handler for Row Selection Delete / Escape
@@ -2225,7 +2268,7 @@ document.addEventListener('keydown', (e) => {
         const isEditingNonStudyInput = (activeTag === 'input' || activeTag === 'textarea') && !document.activeElement.classList.contains('answer-input');
         if (!isEditingNonStudyInput) {
             e.preventDefault();
-            clearSelectedRowsResults();
+            clearSelectedRowsResults(); // Deletes and automatically deselects!
             return;
         }
     }
