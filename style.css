@@ -3282,5 +3282,38 @@ tr.row-selected .answer-input:not(:focus) {
     transform: scale(1.15);
 }
 
+/* App Toast Notification */
+.app-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(15, 23, 42, 0.94);
+    color: #ffffff;
+    padding: 10px 22px;
+    border-radius: var(--radius-full);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    z-index: 99999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+}
+.app-toast.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+[data-theme="light"] .app-toast {
+    background: rgba(30, 41, 59, 0.95);
+    color: #ffffff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+
 
 

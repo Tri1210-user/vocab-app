@@ -80,6 +80,7 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.8.0** | 24/10/2026 | Khắc phục triệt để lỗi đồng bộ khi đăng nhập máy mới/user mới, loại bỏ hoàn toàn 3 bộ từ TOEIC mặc định & tối ưu quy trình đăng xuất sạch sẽ. |
 | **v1.9.0** | 24/10/2026 | Tính năng chọn nhiều hàng từ vựng & xóa kết quả học tập linh hoạt như Google Sheets. |
 | **v1.9.1** | 25/10/2026 | Tối ưu trải nghiệm chọn hàng: click/kéo chuột ở bất cứ đâu trong hàng, click bất kỳ đâu để hủy chọn, tự động bỏ chọn ngay sau khi xóa kết quả. |
+| **v1.9.2** | 25/10/2026 | Sửa triệt để lỗi không tự động bỏ chọn sau khi xóa kết quả (đảm bảo `clearRowSelection` luôn chạy với `try...finally`, tích hợp hàm `showToast` thông báo trực quan và gắn thẻ cache-busting `?v=1.9.2`). |
 
 ---
 
