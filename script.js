@@ -123,6 +123,352 @@ window.showToast = function(message) {
     }
 };
 
+// ==========================================================================
+// LEVEL 2 UNDO / REDO ENGINE (Ctrl+Z & Ctrl+Y / Ctrl+Shift+Z)
+// ==========================================================================
+const MAX_UNDO_DEPTH = 35;
+const undoStack = [];
+const redoStack = [];
+
+function pushUndoAction(action) {
+    if (!action || !action.type) return;
+    undoStack.push(action);
+    if (undoStack.length > MAX_UNDO_DEPTH) {
+        undoStack.shift();
+    }
+    // Clear redo history on any new user action
+    redoStack.length = 0;
+}
+
+window.undoStack = undoStack;
+window.redoStack = redoStack;
+window.pushUndoAction = pushUndoAction;
+
+function executeUndo(action) {
+    switch (action.type) {
+        case 'CLEAR_STUDY_RESULTS': {
+            const { setIndex, items } = action.data;
+            const answers = loadStudyAnswers(setIndex);
+            const results = loadStudyResults(setIndex);
+            const set = setIndex === 'starred_hub' ? getStarredHubVirtualSet() : appData[setIndex];
+
+            items.forEach(item => {
+                answers[item.wordIndex] = item.answer;
+                results[item.wordIndex] = item.result;
+
+                if (currentSetIndex === setIndex && currentView === 'detail' && currentSetTab === 'study') {
+                    const input = document.querySelector(`#vocabTable .answer-input[data-index="${item.wordIndex}"]`);
+                    if (input) {
+                        input.value = item.answer || '';
+                        input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
+                        if (item.result === 'correct') input.classList.add('input-correct');
+                        else if (item.result === 'wrong') input.classList.add('input-wrong');
+                        else if (item.result === 'revealed') input.classList.add('input-revealed');
+                    }
+
+                    const resultCell = document.querySelector(`.result-cell[data-result-for="${item.wordIndex}"]`);
+                    if (resultCell && set && set.words[item.wordIndex]) {
+                        const wordVie = set.words[item.wordIndex].vie;
+                        if (item.result === 'correct') {
+                            resultCell.innerHTML = `
+                                <div class="result-cell-content">
+                                    <span class="result-correct">✅ Đúng</span>
+                                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${item.wordIndex}, event)" title="Xóa kết quả dòng này">✕</button>
+                                </div>`;
+                        } else if (item.result === 'wrong') {
+                            resultCell.innerHTML = `
+                                <div class="result-cell-content">
+                                    <span class="result-wrong">❌ Sai</span> <span class="result-expected">(${escapeHtml(wordVie)})</span>
+                                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${item.wordIndex}, event)" title="Xóa kết quả dòng này">✕</button>
+                                </div>`;
+                        } else if (item.result === 'revealed') {
+                            resultCell.innerHTML = `
+                                <div class="result-cell-content">
+                                    <span class="result-revealed">💡 Đáp án:</span> <span class="result-expected">(${escapeHtml(wordVie)})</span>
+                                    <button class="btn-clear-single-res" onclick="clearSingleRowResult(${item.wordIndex}, event)" title="Xóa kết quả dòng này">✕</button>
+                                </div>`;
+                        } else {
+                            resultCell.innerHTML = `<button class="btn-show-hint" onclick="revealStudyAnswer(${item.wordIndex})" title="Xem đáp án (Ctrl+Enter hoặc F2)">💡 Đáp án</button>`;
+                        }
+                    }
+                }
+            });
+
+            saveStudyAnswers(setIndex, answers);
+            saveStudyResults(setIndex, results);
+            if (currentSetIndex === setIndex) {
+                updateStudyStats();
+            }
+            if (typeof clearRowSelection === 'function') {
+                clearRowSelection(true);
+            }
+            break;
+        }
+
+        case 'CLEAR_ALL_STUDY_RESULTS': {
+            const { setIndex, previousAnswers, previousResults } = action.data;
+            saveStudyAnswers(setIndex, previousAnswers);
+            saveStudyResults(setIndex, previousResults);
+            if (currentSetIndex === setIndex && currentView === 'detail' && currentSetTab === 'study') {
+                renderStudyTable();
+            }
+            if (typeof clearRowSelection === 'function') {
+                clearRowSelection(true);
+            }
+            break;
+        }
+
+        case 'TOGGLE_STAR': {
+            const { setIndex, wordIndex, prevStarred, isVirtual, originalSetIndex, originalWordIndex } = action.data;
+            const targetSet = setIndex === 'starred_hub' ? getStarredHubVirtualSet() : appData[setIndex];
+            if (targetSet && targetSet.words[wordIndex]) {
+                targetSet.words[wordIndex].starred = prevStarred;
+            }
+            if (isVirtual && typeof originalSetIndex === 'number' && appData[originalSetIndex]?.words[originalWordIndex]) {
+                appData[originalSetIndex].words[originalWordIndex].starred = prevStarred;
+            }
+            saveAppData();
+
+            if (currentView === 'detail') {
+                if (currentSetTab === 'study') {
+                    const tr = document.querySelector(`tr[data-word-index="${wordIndex}"]`);
+                    if (tr) {
+                        tr.classList.toggle('row-starred', prevStarred);
+                        const btn = tr.querySelector('.star-btn');
+                        if (btn) {
+                            btn.classList.toggle('active', prevStarred);
+                            btn.innerHTML = prevStarred ? '⭐' : '☆';
+                            btn.title = prevStarred ? 'Bỏ đánh dấu (Alt+S)' : 'Đánh dấu cần ôn (Alt+S)';
+                        }
+                    }
+                    updateStudyFilterCounts();
+                    if (currentStudyFilter === 'starred') renderStudyTable();
+                } else if (currentSetTab === 'list') {
+                    renderWordListTable();
+                }
+            }
+            break;
+        }
+
+        case 'DELETE_WORD': {
+            const { setIndex, wordIndex, word, savedAnswer, savedResult } = action.data;
+            if (appData[setIndex]) {
+                appData[setIndex].words.splice(wordIndex, 0, word);
+                saveAppData();
+
+                const ans = loadStudyAnswers(setIndex);
+                ans.splice(wordIndex, 0, savedAnswer);
+                saveStudyAnswers(setIndex, ans);
+
+                const res = loadStudyResults(setIndex);
+                res.splice(wordIndex, 0, savedResult);
+                saveStudyResults(setIndex, res);
+
+                if (currentView === 'detail' && currentSetIndex === setIndex) {
+                    renderSetDetail();
+                }
+            }
+            break;
+        }
+
+        case 'DELETE_SET': {
+            const { setIndex, set, savedAnswers, savedResults } = action.data;
+            const insertIdx = Math.min(setIndex, appData.length);
+            appData.splice(insertIdx, 0, set);
+            saveAppData();
+
+            if (savedAnswers && savedAnswers.length > 0) {
+                saveStudyAnswers(insertIdx, savedAnswers);
+            }
+            if (savedResults && savedResults.length > 0) {
+                saveStudyResults(insertIdx, savedResults);
+            }
+
+            renderLibrary();
+            break;
+        }
+
+        case 'DELETE_FOLDER': {
+            const { folder, affectedSetIndices } = action.data;
+            if (!folderData.some(f => f.name === folder.name)) {
+                folderData.push(folder);
+                saveFolderData();
+            }
+            (affectedSetIndices || []).forEach(idx => {
+                if (appData[idx]) {
+                    appData[idx].folder = folder.name;
+                }
+            });
+            saveAppData();
+            renderLibrary();
+            break;
+        }
+    }
+}
+
+function executeRedo(action) {
+    switch (action.type) {
+        case 'CLEAR_STUDY_RESULTS': {
+            const { setIndex, items } = action.data;
+            const indices = items.map(it => it.wordIndex);
+            if (currentSetIndex === setIndex && currentView === 'detail' && currentSetTab === 'study') {
+                clearStudyResultsForIndices(indices, true);
+            } else {
+                const answers = loadStudyAnswers(setIndex);
+                const results = loadStudyResults(setIndex);
+                indices.forEach(wIdx => {
+                    answers[wIdx] = '';
+                    results[wIdx] = null;
+                });
+                saveStudyAnswers(setIndex, answers);
+                saveStudyResults(setIndex, results);
+            }
+            if (typeof clearRowSelection === 'function') {
+                clearRowSelection(true);
+            }
+            break;
+        }
+
+        case 'CLEAR_ALL_STUDY_RESULTS': {
+            const { setIndex } = action.data;
+            clearStudyAnswersForSet(setIndex);
+            if (currentSetIndex === setIndex && currentView === 'detail' && currentSetTab === 'study') {
+                renderStudyTable();
+            }
+            if (typeof clearRowSelection === 'function') {
+                clearRowSelection(true);
+            }
+            break;
+        }
+
+        case 'TOGGLE_STAR': {
+            const { setIndex, wordIndex, newStarred, isVirtual, originalSetIndex, originalWordIndex } = action.data;
+            const targetSet = setIndex === 'starred_hub' ? getStarredHubVirtualSet() : appData[setIndex];
+            if (targetSet && targetSet.words[wordIndex]) {
+                targetSet.words[wordIndex].starred = newStarred;
+            }
+            if (isVirtual && typeof originalSetIndex === 'number' && appData[originalSetIndex]?.words[originalWordIndex]) {
+                appData[originalSetIndex].words[originalWordIndex].starred = newStarred;
+            }
+            saveAppData();
+
+            if (currentView === 'detail') {
+                if (currentSetTab === 'study') {
+                    const tr = document.querySelector(`tr[data-word-index="${wordIndex}"]`);
+                    if (tr) {
+                        tr.classList.toggle('row-starred', newStarred);
+                        const btn = tr.querySelector('.star-btn');
+                        if (btn) {
+                            btn.classList.toggle('active', newStarred);
+                            btn.innerHTML = newStarred ? '⭐' : '☆';
+                            btn.title = newStarred ? 'Bỏ đánh dấu (Alt+S)' : 'Đánh dấu cần ôn (Alt+S)';
+                        }
+                    }
+                    updateStudyFilterCounts();
+                    if (currentStudyFilter === 'starred') renderStudyTable();
+                } else if (currentSetTab === 'list') {
+                    renderWordListTable();
+                }
+            }
+            break;
+        }
+
+        case 'DELETE_WORD': {
+            const { setIndex, wordIndex } = action.data;
+            if (appData[setIndex] && appData[setIndex].words[wordIndex]) {
+                appData[setIndex].words.splice(wordIndex, 1);
+                saveAppData();
+
+                const ans = loadStudyAnswers(setIndex);
+                if (ans && ans.length > wordIndex) {
+                    ans.splice(wordIndex, 1);
+                    saveStudyAnswers(setIndex, ans);
+                }
+
+                const res = loadStudyResults(setIndex);
+                if (res && res.length > wordIndex) {
+                    res.splice(wordIndex, 1);
+                    saveStudyResults(setIndex, res);
+                }
+
+                if (currentView === 'detail' && currentSetIndex === setIndex) {
+                    renderSetDetail();
+                }
+            }
+            break;
+        }
+
+        case 'DELETE_SET': {
+            const { setIndex, set } = action.data;
+            let targetIdx = appData.findIndex(s => s.title === set.title);
+            if (targetIdx === -1) targetIdx = Math.min(setIndex, appData.length - 1);
+            if (targetIdx >= 0 && targetIdx < appData.length) {
+                clearStudyAnswersForSet(targetIdx);
+                appData.splice(targetIdx, 1);
+                saveAppData();
+                if (currentSetIndex >= appData.length) {
+                    currentSetIndex = Math.max(0, appData.length - 1);
+                }
+                saveNavState();
+                renderLibrary();
+            }
+            break;
+        }
+
+        case 'DELETE_FOLDER': {
+            const { folder } = action.data;
+            appData.forEach(set => {
+                if (set.folder === folder.name) {
+                    set.folder = "Chưa phân loại";
+                }
+            });
+            saveAppData();
+            folderData = folderData.filter(f => f.name !== folder.name);
+            saveFolderData();
+            if (currentOpenedFolder === folder.name) {
+                closeFolderContents();
+            } else {
+                renderLibrary();
+            }
+            break;
+        }
+    }
+}
+
+window.performUndo = function() {
+    if (undoStack.length === 0) {
+        showToast('ℹ️ Không có thao tác nào để hoàn tác.');
+        return;
+    }
+
+    const action = undoStack.pop();
+    try {
+        executeUndo(action);
+        redoStack.push(action);
+        showToast(`↩️ Đã hoàn tác: ${action.description}`);
+    } catch (err) {
+        console.error('Lỗi khi thực hiện hoàn tác:', err);
+        showToast('⚠️ Không thể hoàn tác thao tác này.');
+    }
+};
+
+window.performRedo = function() {
+    if (redoStack.length === 0) {
+        showToast('ℹ️ Không có thao tác nào để làm lại.');
+        return;
+    }
+
+    const action = redoStack.pop();
+    try {
+        executeRedo(action);
+        undoStack.push(action);
+        showToast(`↪️ Đã làm lại: ${action.description}`);
+    } catch (err) {
+        console.error('Lỗi khi thực hiện làm lại:', err);
+        showToast('⚠️ Không thể làm lại thao tác này.');
+    }
+};
+
 // Current App View State
 let currentView = 'library'; // 'library', 'detail', 'test'
 let currentLibraryTab = 'sets'; // 'sets', 'folders'
@@ -1377,8 +1723,13 @@ window.deleteFolder = function(folderName) {
     }
 
     if (confirm(`Bạn có chắc muốn xóa thư mục "${folderName}" không?\n\nLưu ý: Các học phần bên trong sẽ được chuyển về "Chưa phân loại" chứ KHÔNG bị xóa.`)) {
-        appData.forEach(set => {
+        const deletedFolderObj = folderData.find(f => f.name === folderName);
+        const folderCopy = deletedFolderObj ? JSON.parse(JSON.stringify(deletedFolderObj)) : { name: folderName, color: '#3b82f6', icon: '📁' };
+
+        const affectedSetIndices = [];
+        appData.forEach((set, idx) => {
             if (set.folder === folderName) {
+                affectedSetIndices.push(idx);
                 set.folder = "Chưa phân loại";
             }
         });
@@ -1386,6 +1737,15 @@ window.deleteFolder = function(folderName) {
 
         folderData = folderData.filter(f => f.name !== folderName);
         saveFolderData();
+
+        pushUndoAction({
+            type: 'DELETE_FOLDER',
+            description: `Xóa thư mục "${folderName}"`,
+            data: {
+                folder: folderCopy,
+                affectedSetIndices: affectedSetIndices
+            }
+        });
 
         if (currentOpenedFolder === folderName) {
             closeFolderContents();
@@ -1648,13 +2008,17 @@ function updateStudyFilterCounts() {
     if (chipStarred) chipStarred.textContent = starredWords;
 }
 
-window.toggleStarWord = function(index, event) {
+window.toggleStarWord = function(index, event, skipPushUndo = false) {
     if (event) event.stopPropagation();
     const set = getCurrentSet();
     if (!set || !set.words[index]) return;
 
     const word = set.words[index];
-    word.starred = !word.starred;
+    const prevStarred = !!word.starred;
+    const newStarred = !prevStarred;
+    word.starred = newStarred;
+
+    const wordEng = word.eng || 'thuật ngữ';
 
     // If inside virtual starred hub, update the source set word
     if (set.isVirtualStarredSet && typeof word._originalSetIndex === 'number') {
@@ -1665,6 +2029,22 @@ window.toggleStarWord = function(index, event) {
     }
 
     saveAppData(); // Persists to localStorage and triggers Firebase Cloud Sync
+
+    if (!skipPushUndo) {
+        pushUndoAction({
+            type: 'TOGGLE_STAR',
+            description: newStarred ? `Đánh dấu sao ⭐ "${escapeHtml(wordEng)}"` : `Bỏ đánh dấu sao "${escapeHtml(wordEng)}"`,
+            data: {
+                setIndex: currentSetIndex,
+                wordIndex: index,
+                prevStarred: prevStarred,
+                newStarred: newStarred,
+                isVirtual: !!set.isVirtualStarredSet,
+                originalSetIndex: word._originalSetIndex,
+                originalWordIndex: word._originalWordIndex
+            }
+        });
+    }
 
     // Update row in DOM
     const tr = document.querySelector(`tr[data-word-index="${index}"]`);
@@ -2246,7 +2626,7 @@ window.clearSingleRowResult = function(wordIndex, event) {
     }
 };
 
-window.clearStudyResultsForIndices = function(indices) {
+window.clearStudyResultsForIndices = function(indices, skipPushUndo = false) {
     if (!indices || indices.length === 0) return;
     const indexArray = Array.isArray(indices) ? indices : Array.from(indices);
     if (indexArray.length === 0) return;
@@ -2254,6 +2634,35 @@ window.clearStudyResultsForIndices = function(indices) {
     try {
         const savedAnswers = loadStudyAnswers(currentSetIndex);
         const savedResults = loadStudyResults(currentSetIndex);
+
+        if (!skipPushUndo) {
+            const itemsToRecord = [];
+            indexArray.forEach(wordIndex => {
+                const ans = savedAnswers[wordIndex] || '';
+                const res = savedResults[wordIndex] || null;
+                if (ans !== '' || res !== null) {
+                    itemsToRecord.push({
+                        wordIndex: wordIndex,
+                        answer: ans,
+                        result: res
+                    });
+                }
+            });
+
+            if (itemsToRecord.length > 0) {
+                const desc = itemsToRecord.length === 1
+                    ? `Xóa kết quả dòng #${itemsToRecord[0].wordIndex + 1}`
+                    : `Xóa kết quả ${itemsToRecord.length} dòng`;
+                pushUndoAction({
+                    type: 'CLEAR_STUDY_RESULTS',
+                    description: desc,
+                    data: {
+                        setIndex: currentSetIndex,
+                        items: itemsToRecord
+                    }
+                });
+            }
+        }
 
         indexArray.forEach(wordIndex => {
             savedAnswers[wordIndex] = '';
@@ -2295,8 +2704,38 @@ window.clearSelectedRowsResults = function() {
     }
 };
 
-// Global Keyboard Handler for Row Selection Delete / Escape
+// Global Keyboard Handler for Undo/Redo & Row Selection Delete / Escape
 document.addEventListener('keydown', (e) => {
+    // 0. Level 2 Global Undo (Ctrl + Z) & Redo (Ctrl + Y or Ctrl + Shift + Z)
+    const isUndo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey;
+    const isRedo = ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) ||
+                   ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z'));
+
+    if (isUndo || isRedo) {
+        const activeEl = document.activeElement;
+        const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+        if (isInput) {
+            // Standard non-study input fields: preserve native browser undo/redo
+            if (!activeEl.classList.contains('answer-input')) {
+                return;
+            }
+
+            // In study answer-input: if typing text and not in multi-row select mode, allow native typing undo
+            if (activeEl.value.trim() !== '' && selectedStudyIndices.size === 0) {
+                return;
+            }
+        }
+
+        e.preventDefault();
+        if (isUndo) {
+            performUndo();
+        } else {
+            performRedo();
+        }
+        return;
+    }
+
     // 1. Delete or Backspace when rows are selected
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedStudyIndices.size > 0) {
         const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
@@ -2316,9 +2755,26 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-window.clearStudyAnswers = function() {
+window.clearStudyAnswers = function(skipPushUndo = false) {
     try {
         clearRowSelection(true);
+
+        const savedAnswers = loadStudyAnswers(currentSetIndex);
+        const savedResults = loadStudyResults(currentSetIndex);
+        const hasData = (savedAnswers && savedAnswers.some(a => a)) || (savedResults && savedResults.some(r => r));
+
+        if (!skipPushUndo && hasData) {
+            pushUndoAction({
+                type: 'CLEAR_ALL_STUDY_RESULTS',
+                description: 'Xóa toàn bộ kết quả bài học',
+                data: {
+                    setIndex: currentSetIndex,
+                    previousAnswers: [...savedAnswers],
+                    previousResults: [...savedResults]
+                }
+            });
+        }
+
         document.querySelectorAll('#vocabTable .answer-input').forEach(input => {
             input.value = '';
             input.classList.remove('input-correct', 'input-wrong', 'input-revealed');
@@ -3349,14 +3805,18 @@ window.closeDeleteWordModal = function() {
 };
 
 document.getElementById('btnConfirmDeleteWord').onclick = function() {
-    if (wordIdxToDelete > -1) {
+    if (wordIdxToDelete > -1 && appData[currentSetIndex]?.words[wordIdxToDelete]) {
+        const deletedWord = JSON.parse(JSON.stringify(appData[currentSetIndex].words[wordIdxToDelete]));
+
         // Sync saved study answers & results
         const saved = loadStudyAnswers(currentSetIndex);
+        const deletedAns = (saved && saved[wordIdxToDelete]) ? saved[wordIdxToDelete] : '';
         if (saved && saved.length > wordIdxToDelete) {
             saved.splice(wordIdxToDelete, 1);
             saveStudyAnswers(currentSetIndex, saved);
         }
         const results = loadStudyResults(currentSetIndex);
+        const deletedRes = (results && results[wordIdxToDelete]) ? results[wordIdxToDelete] : null;
         if (results && results.length > wordIdxToDelete) {
             results.splice(wordIdxToDelete, 1);
             saveStudyResults(currentSetIndex, results);
@@ -3364,6 +3824,19 @@ document.getElementById('btnConfirmDeleteWord').onclick = function() {
 
         appData[currentSetIndex].words.splice(wordIdxToDelete, 1);
         saveAppData();
+
+        pushUndoAction({
+            type: 'DELETE_WORD',
+            description: `Xóa từ "${deletedWord.eng || 'thuật ngữ'}"`,
+            data: {
+                setIndex: currentSetIndex,
+                wordIndex: wordIdxToDelete,
+                word: deletedWord,
+                savedAnswer: deletedAns,
+                savedResult: deletedRes
+            }
+        });
+
         renderSetDetail();
         closeDeleteWordModal();
     }
@@ -3422,10 +3895,26 @@ window.closeDeleteSetModal = function() {
 };
 
 document.getElementById('btnConfirmDeleteSet').onclick = function() {
-    if (setIdxToDelete > -1) {
+    if (setIdxToDelete > -1 && appData[setIdxToDelete]) {
+        const deletedSet = JSON.parse(JSON.stringify(appData[setIdxToDelete]));
+        const savedAns = loadStudyAnswers(setIdxToDelete);
+        const savedRes = loadStudyResults(setIdxToDelete);
+
         clearStudyAnswersForSet(setIdxToDelete);
         appData.splice(setIdxToDelete, 1);
         saveAppData();
+
+        pushUndoAction({
+            type: 'DELETE_SET',
+            description: `Xóa học phần "${deletedSet.title}"`,
+            data: {
+                setIndex: setIdxToDelete,
+                set: deletedSet,
+                savedAnswers: savedAns,
+                savedResults: savedRes
+            }
+        });
+
         if (currentSetIndex >= appData.length) {
             currentSetIndex = Math.max(0, appData.length - 1);
         }

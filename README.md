@@ -62,6 +62,15 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
    - **Bảo toàn từ vựng tuyệt đối:** Chỉ xóa câu trả lời và kết quả đánh giá (Đúng/Sai) để luyện tập lại từ đầu, tuyệt đối **không xóa** từ vựng hay làm mất dữ liệu học phần.
    - Tích hợp phím tắt nhanh <kbd>Alt + Delete</kbd> khi đang gõ hoặc nút xóa trực tiếp `✕` bên cạnh kết quả để xóa lại từng câu đơn lẻ.
 
+11. **Hệ Thống Hoàn Tác & Làm Lại Toàn Diện Cấp Ứng Dụng (Full-App Ctrl+Z & Ctrl+Y Undo/Redo Engine - Mức Độ 2)**
+   - **Hoàn tác & Làm lại mọi thao tác quan trọng:** Hỗ trợ <kbd>Ctrl + Z</kbd> (Undo) và <kbd>Ctrl + Y</kbd> / <kbd>Ctrl + Shift + Z</kbd> (Redo) đa tầng lên đến 35 bước.
+   - **Khôi phục kết quả luyện gõ:** Lỡ tay xóa 1 hàng, xóa hàng loạt hàng đã chọn, hoặc bấm nhầm *"🧹 Xóa tất cả"* -> chỉ cần bấm <kbd>Ctrl + Z</kbd> là toàn bộ câu trả lời và kết quả Đúng/Sai được khôi phục nguyên vẹn ngay lập tức.
+   - **Khôi phục trạng thái đánh dấu sao (⭐):** Dễ dàng hoàn tác thao tác bật / tắt sao của từ vựng.
+   - **Khôi phục quản lý dữ liệu an toàn tuyệt đối:** Hoàn tác khôi phục từ vựng vừa xóa khỏi học phần, khôi phục học phần vừa xóa, khôi phục thư mục vừa xóa kèm khôi phục liên kết các học phần về đúng thư mục cũ.
+   - **Tự động đồng bộ đám mây (Cloud Sync):** Khi hoàn tác hoặc làm lại các thao tác dữ liệu (từ vựng, học phần, thư mục), dữ liệu được tự động đồng bộ hóa lên Firebase Firestore.
+   - **Bảo toàn tính năng gõ văn bản mặc định:** Giữ nguyên 100% tính năng hoàn tác ký tự mặc định của trình duyệt khi đang gõ chữ trong các ô nhập tiêu đề, tìm kiếm, thêm từ...
+   - **Thông báo Toast tinh tế:** Hiển thị thông báo Toast xác nhận trực quan `↩️ Đã hoàn tác: [hành động]` và `↪️ Đã làm lại: [hành động]`.
+
 ---
 
 ## 🏷️ Lịch Sử Phiên Bản (Version History)
@@ -81,6 +90,7 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.9.0** | 24/10/2026 | Tính năng chọn nhiều hàng từ vựng & xóa kết quả học tập linh hoạt như Google Sheets. |
 | **v1.9.1** | 25/10/2026 | Tối ưu trải nghiệm chọn hàng: click/kéo chuột ở bất cứ đâu trong hàng, click bất kỳ đâu để hủy chọn, tự động bỏ chọn ngay sau khi xóa kết quả. |
 | **v1.9.2** | 25/10/2026 | Sửa triệt để lỗi không tự động bỏ chọn sau khi xóa kết quả (đảm bảo `clearRowSelection` luôn chạy với `try...finally`, tích hợp hàm `showToast` thông báo trực quan và gắn thẻ cache-busting `?v=1.9.2`). |
+| **v1.10.0** | 25/10/2026 | Phát triển toàn diện Hệ thống Hoàn tác & Làm lại Mức độ 2 (Full-App Level 2 Undo/Redo Engine: Ctrl+Z & Ctrl+Y / Ctrl+Shift+Z cho luyện gõ, đánh dấu sao, xóa từ, xóa học phần và xóa thư mục kèm đồng bộ đám mây tự động). |
 
 ---
 
