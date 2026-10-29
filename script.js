@@ -1929,7 +1929,7 @@ function loadStudyAnswers(index) {
     return [];
 }
 
-function saveStudyAnswers(index, answersArray) {
+function saveStudyAnswers(index, answersArray, triggerSync = true) {
     const primaryKey = getStudyStorageKey(index);
     const legacyKey = `studyAnswers_${index}`;
     const serialized = JSON.stringify(answersArray);
@@ -1937,8 +1937,12 @@ function saveStudyAnswers(index, answersArray) {
         localStorage.setItem(primaryKey, serialized);
         localStorage.setItem(legacyKey, serialized);
         sessionStorage.setItem(legacyKey, serialized);
+        localStorage.setItem(`toeic_study_time_${index}`, Date.now().toString());
     } catch (e) {
         console.warn('Failed to save study answers:', e);
+    }
+    if (triggerSync && typeof triggerCloudSync === 'function') {
+        triggerCloudSync();
     }
 }
 
@@ -1958,19 +1962,23 @@ function loadStudyResults(index) {
     return [];
 }
 
-function saveStudyResults(index, resultsArray) {
+function saveStudyResults(index, resultsArray, triggerSync = true) {
     const primaryKey = getStudyResultsKey(index);
     const legacyKey = `studyResults_${index}`;
     const serialized = JSON.stringify(resultsArray);
     try {
         localStorage.setItem(primaryKey, serialized);
         localStorage.setItem(legacyKey, serialized);
+        localStorage.setItem(`toeic_study_time_${index}`, Date.now().toString());
     } catch (e) {
         console.warn('Failed to save study results:', e);
     }
+    if (triggerSync && typeof triggerCloudSync === 'function') {
+        triggerCloudSync();
+    }
 }
 
-function clearStudyAnswersForSet(index) {
+function clearStudyAnswersForSet(index, triggerSync = true) {
     const primaryAnsKey = getStudyStorageKey(index);
     const legacyAnsKey = `studyAnswers_${index}`;
     const primaryResKey = getStudyResultsKey(index);
@@ -1981,7 +1989,11 @@ function clearStudyAnswersForSet(index) {
         localStorage.removeItem(primaryResKey);
         localStorage.removeItem(legacyResKey);
         sessionStorage.removeItem(legacyAnsKey);
+        localStorage.setItem(`toeic_study_time_${index}`, Date.now().toString());
     } catch (e) {}
+    if (triggerSync && typeof triggerCloudSync === 'function') {
+        triggerCloudSync();
+    }
 }
 
 // --- STARRED FILTER & STUDY CONTROLS ---
@@ -4350,6 +4362,107 @@ function setSyncStatus(status, text) {
     }
 }
 
+// Unique client session ID to distinguish writes between multiple tabs/browsers
+const CLIENT_SESSION_ID = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+function getSafeSetKey(set, index) {
+    if (set && set.title) {
+        return 'set_' + (set.title || '').replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]/g, '_').slice(0, 50);
+    }
+    return `set_${index}`;
+}
+
+function getStudyProgressCloudPayload() {
+    const progressMap = {};
+    (appData || []).forEach((set, index) => {
+        if (!set || !set.title) return;
+        const answers = loadStudyAnswers(index);
+        const results = loadStudyResults(index);
+
+        const hasAnswers = Array.isArray(answers) && answers.some(a => a && a.trim() !== '');
+        const hasResults = Array.isArray(results) && results.some(r => r !== null && r !== undefined);
+
+        const timeRaw = localStorage.getItem(`toeic_study_time_${index}`);
+        const updatedAt = timeRaw ? parseInt(timeRaw, 10) : Date.now();
+
+        const safeKey = getSafeSetKey(set, index);
+        if (hasAnswers || hasResults) {
+            progressMap[safeKey] = {
+                title: set.title,
+                setIndex: index,
+                answers: answers,
+                results: results,
+                updatedAt: updatedAt
+            };
+        } else if (timeRaw) {
+            // Explicitly cleared
+            progressMap[safeKey] = {
+                title: set.title,
+                setIndex: index,
+                answers: [],
+                results: [],
+                updatedAt: updatedAt
+            };
+        }
+    });
+    return progressMap;
+}
+
+function applyCloudStudyProgress(cloudProgress) {
+    if (!cloudProgress || typeof cloudProgress !== 'object') return false;
+
+    let hasUpdatedAnySet = false;
+
+    (appData || []).forEach((set, index) => {
+        if (!set || !set.title) return;
+        const safeKey = getSafeSetKey(set, index);
+        const cloudSetData = cloudProgress[safeKey] || 
+                             cloudProgress[set.title.trim()] || 
+                             Object.values(cloudProgress).find(item => item && item.title === set.title) ||
+                             cloudProgress[`set_${index}`];
+        if (!cloudSetData) return;
+
+        const localAnswers = loadStudyAnswers(index);
+        const localResults = loadStudyResults(index);
+
+        const localHasData = (Array.isArray(localAnswers) && localAnswers.some(a => a && a.trim() !== '')) ||
+                             (Array.isArray(localResults) && localResults.some(r => r !== null && r !== undefined));
+
+        const cloudHasData = (Array.isArray(cloudSetData.answers) && cloudSetData.answers.some(a => a && a.trim() !== '')) ||
+                             (Array.isArray(cloudSetData.results) && cloudSetData.results.some(r => r !== null && r !== undefined));
+
+        const localTimeRaw = localStorage.getItem(`toeic_study_time_${index}`);
+        const localTime = localTimeRaw ? parseInt(localTimeRaw, 10) : 0;
+        const cloudTime = cloudSetData.updatedAt || 0;
+
+        let shouldApplyCloud = false;
+
+        // Case A: Local is empty but Cloud has answers -> Adopt from Cloud
+        if (!localHasData && cloudHasData) {
+            shouldApplyCloud = true;
+        }
+        // Case B: Both have answers, but Cloud is newer -> Adopt from Cloud
+        else if (localHasData && cloudHasData && cloudTime > localTime) {
+            shouldApplyCloud = true;
+        }
+        // Case C: Cloud was explicitly cleared newer than local -> Adopt from Cloud
+        else if (localHasData && !cloudHasData && cloudTime > localTime) {
+            shouldApplyCloud = true;
+        }
+
+        if (shouldApplyCloud) {
+            saveStudyAnswers(index, cloudSetData.answers || [], false);
+            saveStudyResults(index, cloudSetData.results || [], false);
+            if (cloudTime > 0) {
+                localStorage.setItem(`toeic_study_time_${index}`, cloudTime.toString());
+            }
+            hasUpdatedAnySet = true;
+        }
+    });
+
+    return hasUpdatedAnySet;
+}
+
 function attachCloudRealtimeListener(user) {
     if (!firestoreDb || !user) return;
 
@@ -4372,8 +4485,10 @@ function attachCloudRealtimeListener(user) {
         } else {
             const cloudData = docSnapshot.data();
             if (cloudData) {
-                // If this snapshot was triggered by our own local write (within 2.5s), skip re-rendering
-                if (Date.now() - (cloudData.updatedAt || 0) < 2500 && !isInitialCloudLoad) {
+                // Only skip re-rendering if THIS EXACT client/tab made the write recently
+                const isOurOwnWrite = (cloudData.lastSyncClientId === CLIENT_SESSION_ID) && 
+                                      (Date.now() - (cloudData.updatedAt || 0) < 3000);
+                if (isOurOwnWrite && !isInitialCloudLoad) {
                     setSyncStatus('synced', 'Đã đồng bộ');
                     return;
                 }
@@ -4404,6 +4519,19 @@ function syncFromCloudSourceOfTruth(cloudData) {
     localStorage.setItem('toeicAppData', JSON.stringify(appData));
     localStorage.setItem('toeicFolderData', JSON.stringify(folderData));
 
+    // Synchronize study progress across devices & browsers
+    if (cloudData.studyProgress && typeof cloudData.studyProgress === 'object') {
+        applyCloudStudyProgress(cloudData.studyProgress);
+    } else {
+        // If Cloud has no studyProgress yet, but local HAS study progress:
+        // Automatically seed the cloud with local progress
+        const localPayload = getStudyProgressCloudPayload();
+        if (Object.keys(localPayload).length > 0) {
+            console.log('[Firebase Cloud] Local có tiến độ bài làm, tự động đẩy lên Cloud...');
+            triggerCloudSync(true);
+        }
+    }
+
     console.log('[Firebase Cloud] Đã đồng bộ dữ liệu sạch từ Cloud Firestore.');
     setSyncStatus('synced', 'Đã đồng bộ');
 
@@ -4432,11 +4560,15 @@ function triggerCloudSync(immediate = false) {
         try {
             setSyncStatus('syncing', 'Đang lưu Cloud...');
             const userDocRef = firestoreDb.collection('users').doc(currentUser.uid);
+            const studyProgressPayload = getStudyProgressCloudPayload();
+
             await userDocRef.set({
                 appData: appData,
                 folderData: folderData,
+                studyProgress: studyProgressPayload,
                 updatedAt: Date.now(),
                 userEmail: currentUser.email,
+                lastSyncClientId: CLIENT_SESSION_ID,
                 lastSyncBy: navigator.userAgent
             }, { merge: true });
             setSyncStatus('synced', 'Đã đồng bộ');
@@ -4460,10 +4592,39 @@ async function forceManualCloudSync() {
         return;
     }
     await triggerCloudSync(true);
-    alert("✅ Toàn bộ học phần và thư mục của bạn đã được tải lên Cloud thành công!");
+    alert("✅ Toàn bộ học phần, thư mục và tiến độ bài làm của bạn đã được tải lên Cloud thành công!");
     const dropdown = document.getElementById('userDropdownMenu');
     if (dropdown) dropdown.style.display = 'none';
 }
+
+// Auto re-check and sync on Tab Resume / Visibility Change (for Edge Workspace sleeping tabs)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && currentUser && firestoreDb) {
+        const userDocRef = firestoreDb.collection('users').doc(currentUser.uid);
+        userDocRef.get().then(docSnapshot => {
+            if (docSnapshot.exists) {
+                const cloudData = docSnapshot.data();
+                if (cloudData) {
+                    const isOurOwnWrite = (cloudData.lastSyncClientId === CLIENT_SESSION_ID) && 
+                                          (Date.now() - (cloudData.updatedAt || 0) < 3000);
+                    if (!isOurOwnWrite) {
+                        syncFromCloudSourceOfTruth(cloudData);
+                    }
+                }
+            }
+        }).catch(err => {
+            console.warn('[Firebase Cloud Resume Error]', err);
+        });
+    }
+});
+
+window.addEventListener('focus', () => {
+    if (currentUser && firestoreDb) {
+        if (currentView === 'detail' && currentSetTab === 'study') {
+            updateStudyStats();
+        }
+    }
+});
 
 // Khởi chạy kết nối Firebase
 initFirebaseService();

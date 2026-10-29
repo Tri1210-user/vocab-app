@@ -91,6 +91,7 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.9.1** | 25/10/2026 | Tối ưu trải nghiệm chọn hàng: click/kéo chuột ở bất cứ đâu trong hàng, click bất kỳ đâu để hủy chọn, tự động bỏ chọn ngay sau khi xóa kết quả. |
 | **v1.9.2** | 25/10/2026 | Sửa triệt để lỗi không tự động bỏ chọn sau khi xóa kết quả (đảm bảo `clearRowSelection` luôn chạy với `try...finally`, tích hợp hàm `showToast` thông báo trực quan và gắn thẻ cache-busting `?v=1.9.2`). |
 | **v1.10.0** | 25/10/2026 | Phát triển toàn diện Hệ thống Hoàn tác & Làm lại Mức độ 2 (Full-App Level 2 Undo/Redo Engine: Ctrl+Z & Ctrl+Y / Ctrl+Shift+Z cho luyện gõ, đánh dấu sao, xóa từ, xóa học phần và xóa thư mục kèm đồng bộ đám mây tự động). |
+| **v1.10.1** | 29/10/2026 | Đồng bộ hóa toàn bộ tiến độ làm bài (Study Progress: câu trả lời đã gõ & kết quả Đúng/Sai) lên Cloud Firestore đa trình duyệt/thiết bị; hỗ trợ tự động đánh thức và kéo dữ liệu mới khi mở lại tab ngủ trong Edge Workspace. |
 
 ---
 
