@@ -3251,6 +3251,36 @@ tr.row-selected .answer-input:not(:focus) {
     box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
 }
 
+.btn-swap-selected {
+    background: #3b82f6 !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.btn-swap-selected:hover {
+    background: #2563eb !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+}
+.btn-swap-selected kbd {
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 11px;
+}
+[data-theme="light"] .btn-swap-selected kbd {
+    background: rgba(255, 255, 255, 0.35);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
 /* Result cell quick clear button */
 .result-cell-content {
     display: inline-flex;

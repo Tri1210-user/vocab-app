@@ -71,6 +71,14 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
    - **Bảo toàn tính năng gõ văn bản mặc định:** Giữ nguyên 100% tính năng hoàn tác ký tự mặc định của trình duyệt khi đang gõ chữ trong các ô nhập tiêu đề, tìm kiếm, thêm từ...
    - **Thông báo Toast tinh tế:** Hiển thị thông báo Toast xác nhận trực quan `↩️ Đã hoàn tác: [hành động]` và `↪️ Đã làm lại: [hành động]`.
 
+12. **Hoán Đổi Chiều Từ Vựng Linh Hoạt (Anh ⇄ Việt & Việt ⇄ Anh) Trong Học Phần**
+   - **Luyện gõ tiếng Anh chủ động (Việt ➔ Anh):** Dễ dàng đổi chiều câu hỏi từ Anh ➔ Việt sang Việt ➔ Anh để trực tiếp luyện nhớ và gõ từ vựng tiếng Anh.
+   - **Chọn nhiều dòng để đổi:** Tích hợp trực tiếp vào thanh thao tác chọn hàng đa năng (`studySelectionBar`) kế bên nút Xóa kết quả, hỗ trợ bấm chuột hoặc kéo chọn nhiều dòng cùng lúc.
+   - **Phím tắt nhanh linh hoạt:** Hỗ trợ phím tắt <kbd>Alt + X</kbd> (hoặc phím <kbd>X</kbd> khi có hàng được chọn) để hoán đổi tức thì mà không cần dùng chuột.
+   - **Tự động đổi tên cột & gợi ý thông minh:** Tự động phát hiện ngôn ngữ để đổi tên tiêu đề cột (`Từ vựng (English)` ⇄ `Nghĩa tiếng Việt`, `Từ vựng tiếng Anh (Gõ đáp án...)`) và placeholder gợi ý trong ô nhập liệu.
+   - **Đồng bộ hóa đám mây an toàn & hỗ trợ Hoàn tác (Undo):** Dữ liệu hoán đổi được lưu trữ tức thì và tự động đồng bộ hóa lên Firebase Firestore; hỗ trợ hoàn tác <kbd>Ctrl + Z</kbd> và làm lại <kbd>Ctrl + Y</kbd> bảo toàn 100% dữ liệu.
+   - **Phát âm thông minh (Smart TTS):** Tự động phát hiện ngôn ngữ Việt/Anh để phát âm chuẩn xác ngữ điệu khi nhấn icon loa 🔊 hoặc phím <kbd>Tab</kbd>.
+
 ---
 
 ## 🏷️ Lịch Sử Phiên Bản (Version History)
@@ -92,6 +100,7 @@ VocabMaster giúp bạn quản lý các học phần từ vựng (TOEIC, IELTS, 
 | **v1.9.2** | 25/10/2026 | Sửa triệt để lỗi không tự động bỏ chọn sau khi xóa kết quả (đảm bảo `clearRowSelection` luôn chạy với `try...finally`, tích hợp hàm `showToast` thông báo trực quan và gắn thẻ cache-busting `?v=1.9.2`). |
 | **v1.10.0** | 25/10/2026 | Phát triển toàn diện Hệ thống Hoàn tác & Làm lại Mức độ 2 (Full-App Level 2 Undo/Redo Engine: Ctrl+Z & Ctrl+Y / Ctrl+Shift+Z cho luyện gõ, đánh dấu sao, xóa từ, xóa học phần và xóa thư mục kèm đồng bộ đám mây tự động). |
 | **v1.10.1** | 29/10/2026 | Đồng bộ hóa toàn bộ tiến độ làm bài (Study Progress: câu trả lời đã gõ & kết quả Đúng/Sai) lên Cloud Firestore đa trình duyệt/thiết bị; hỗ trợ tự động đánh thức và kéo dữ liệu mới khi mở lại tab ngủ trong Edge Workspace. |
+| **v1.11.0** | 31/10/2026 | Tính năng Đổi chiều từ vựng (Anh ⇄ Việt & Việt ⇄ Anh) trong học phần: chọn nhiều dòng để đổi, nút chuyển đổi trong thanh thao tác, phím tắt Alt+X, tự động đổi tên cột & đồng bộ hóa Cloud Firestore kèm hoàn tác Ctrl+Z. |
 
 ---
 

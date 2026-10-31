@@ -303,6 +303,42 @@ function executeUndo(action) {
             renderLibrary();
             break;
         }
+
+        case 'SWAP_WORDS': {
+            const { setIndex, items } = action.data;
+            const targetSet = setIndex === 'starred_hub' ? getStarredHubVirtualSet() : appData[setIndex];
+            const answers = loadStudyAnswers(setIndex);
+            const results = loadStudyResults(setIndex);
+
+            items.forEach(it => {
+                if (targetSet && targetSet.words[it.wordIndex]) {
+                    targetSet.words[it.wordIndex].eng = it.prevEng;
+                    targetSet.words[it.wordIndex].vie = it.prevVie;
+                }
+                if (it.isVirtual && typeof it.originalSetIndex === 'number' && appData[it.originalSetIndex]?.words[it.originalWordIndex]) {
+                    appData[it.originalSetIndex].words[it.originalWordIndex].eng = it.prevEng;
+                    appData[it.originalSetIndex].words[it.originalWordIndex].vie = it.prevVie;
+                }
+                answers[it.wordIndex] = it.prevAns;
+                results[it.wordIndex] = it.prevRes;
+            });
+
+            saveAppData();
+            saveStudyAnswers(setIndex, answers);
+            saveStudyResults(setIndex, results);
+
+            if (currentSetIndex === setIndex && currentView === 'detail') {
+                if (currentSetTab === 'study') {
+                    renderStudyTable();
+                } else if (currentSetTab === 'list') {
+                    renderWordListTable();
+                }
+            }
+            if (typeof clearRowSelection === 'function') {
+                clearRowSelection(true);
+            }
+            break;
+        }
     }
 }
 
@@ -429,6 +465,42 @@ function executeRedo(action) {
                 closeFolderContents();
             } else {
                 renderLibrary();
+            }
+            break;
+        }
+
+        case 'SWAP_WORDS': {
+            const { setIndex, items } = action.data;
+            const targetSet = setIndex === 'starred_hub' ? getStarredHubVirtualSet() : appData[setIndex];
+            const answers = loadStudyAnswers(setIndex);
+            const results = loadStudyResults(setIndex);
+
+            items.forEach(it => {
+                if (targetSet && targetSet.words[it.wordIndex]) {
+                    targetSet.words[it.wordIndex].eng = it.prevVie;
+                    targetSet.words[it.wordIndex].vie = it.prevEng;
+                }
+                if (it.isVirtual && typeof it.originalSetIndex === 'number' && appData[it.originalSetIndex]?.words[it.originalWordIndex]) {
+                    appData[it.originalSetIndex].words[it.originalWordIndex].eng = it.prevVie;
+                    appData[it.originalSetIndex].words[it.originalWordIndex].vie = it.prevEng;
+                }
+                answers[it.wordIndex] = '';
+                results[it.wordIndex] = null;
+            });
+
+            saveAppData();
+            saveStudyAnswers(setIndex, answers);
+            saveStudyResults(setIndex, results);
+
+            if (currentSetIndex === setIndex && currentView === 'detail') {
+                if (currentSetTab === 'study') {
+                    renderStudyTable();
+                } else if (currentSetTab === 'list') {
+                    renderWordListTable();
+                }
+            }
+            if (typeof clearRowSelection === 'function') {
+                clearRowSelection(true);
             }
             break;
         }
@@ -2089,6 +2161,60 @@ let isRowDragSelecting = false;
 let dragStartIndex = null;
 let wasRowDragged = false;
 
+function updateStudyTableHeaders() {
+    const set = getCurrentSet();
+    const promptHeader = document.getElementById('studyColPromptHeader');
+    const answerHeader = document.getElementById('studyColAnswerHeader');
+    if (!promptHeader || !answerHeader || !set || !set.words || set.words.length === 0) return;
+
+    const viRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+    let viPromptCount = 0;
+    let enPromptCount = 0;
+
+    set.words.forEach(w => {
+        if (viRegex.test(w.eng)) viPromptCount++;
+        else enPromptCount++;
+    });
+
+    if (viPromptCount > enPromptCount && viPromptCount > 0) {
+        promptHeader.textContent = 'Nghĩa tiếng Việt';
+        promptHeader.title = 'Từ hỏi (Tiếng Việt)';
+        answerHeader.innerHTML = 'Từ vựng tiếng Anh <span style="font-size: 11px; font-weight: normal; opacity: 0.8;">(Gõ đáp án rồi bấm Enter)</span>';
+    } else if (enPromptCount > viPromptCount && enPromptCount > 0) {
+        promptHeader.textContent = 'Từ vựng (English)';
+        promptHeader.title = 'Từ vựng (English)';
+        answerHeader.innerHTML = 'Nghĩa tiếng Việt <span style="font-size: 11px; font-weight: normal; opacity: 0.8;">(Gõ đáp án rồi bấm Enter)</span>';
+    } else {
+        promptHeader.textContent = 'Thuật ngữ / Câu hỏi';
+        promptHeader.title = 'Thuật ngữ / Câu hỏi';
+        answerHeader.innerHTML = 'Đáp án cần gõ <span style="font-size: 11px; font-weight: normal; opacity: 0.8;">(Gõ đáp án rồi bấm Enter)</span>';
+    }
+}
+
+function updateWordListTableHeaders() {
+    const set = getCurrentSet();
+    const promptHeader = document.getElementById('wordListColPromptHeader');
+    const answerHeader = document.getElementById('wordListColAnswerHeader');
+    if (!promptHeader || !answerHeader || !set || !set.words || set.words.length === 0) return;
+
+    const viRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+    let viPromptCount = 0;
+    let enPromptCount = 0;
+
+    set.words.forEach(w => {
+        if (viRegex.test(w.eng)) viPromptCount++;
+        else enPromptCount++;
+    });
+
+    if (viPromptCount > enPromptCount && viPromptCount > 0) {
+        promptHeader.textContent = 'Tiếng Việt';
+        answerHeader.textContent = 'Tiếng Anh';
+    } else {
+        promptHeader.textContent = 'Tiếng Anh';
+        answerHeader.textContent = 'Tiếng Việt';
+    }
+}
+
 // --- STUDY TAB (TABLE TYPING PRACTICE) ---
 function renderStudyTable() {
     const set = getCurrentSet();
@@ -2096,6 +2222,7 @@ function renderStudyTable() {
     tbody.innerHTML = '';
 
     updateStudyFilterCounts();
+    updateStudyTableHeaders();
 
     if (!set || set.words.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
@@ -2132,12 +2259,18 @@ function renderStudyTable() {
 
     const savedAnswers = loadStudyAnswers(currentSetIndex);
     const savedResults = loadStudyResults(currentSetIndex);
+    const viRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 
     wordsToRender.forEach(({ item, originalIndex }, displayIndex) => {
         const oldAns = savedAnswers[originalIndex] || '';
         const oldRes = savedResults[originalIndex] || null;
         const isStarred = !!item.starred;
         const isSelected = selectedStudyIndices.has(originalIndex);
+
+        const isAnswerEnglish = !viRegex.test(item.vie) && viRegex.test(item.eng);
+        const inputPlaceholder = isAnswerEnglish 
+            ? "Gõ từ tiếng Anh rồi Enter... (F2: đáp án, Alt+S: ⭐, Alt+X: đổi)"
+            : "Gõ nghĩa rồi Enter... (F2: đáp án, Alt+S: ⭐, Alt+X: đổi)";
 
         let inputClass = 'answer-input';
         let resultHtml = '';
@@ -2200,7 +2333,7 @@ function renderStudyTable() {
             </td>
             <td><span class="type-badge">${escapeHtml(item.type || '-')}</span></td>
             <td>
-                <input type="text" class="${inputClass}" placeholder="Gõ nghĩa rồi Enter... (F2: đáp án, Alt+S: đánh dấu ⭐)" value="${escapeHtml(oldAns)}" data-index="${originalIndex}">
+                <input type="text" class="${inputClass}" placeholder="${inputPlaceholder}" value="${escapeHtml(oldAns)}" data-index="${originalIndex}">
             </td>
             <td class="result-cell" data-result-for="${originalIndex}">
                 ${resultHtml}
@@ -2337,6 +2470,13 @@ function setupStudyEvents() {
                 return;
             }
 
+            // A2. Shortcut to swap current word direction: Alt + X
+            if (e.altKey && (e.key === 'x' || e.key === 'X')) {
+                e.preventDefault();
+                swapStudyWordsForIndices([wordIndex]);
+                return;
+            }
+
             // B. Shortcut to clear current row: Alt + Delete or Ctrl + Delete
             if ((e.altKey || e.ctrlKey) && (e.key === 'Delete' || e.key === 'Backspace')) {
                 e.preventDefault();
@@ -2354,7 +2494,12 @@ function setupStudyEvents() {
             // D. Tab: Pronounce English word
             if (e.key === 'Tab') {
                 e.preventDefault();
-                if (set.words[wordIndex]) speakWord(set.words[wordIndex].eng);
+                if (set.words[wordIndex]) {
+                    const w = set.words[wordIndex];
+                    const viRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+                    const enText = !viRegex.test(w.eng) ? w.eng : (!viRegex.test(w.vie) ? w.vie : w.eng);
+                    speakWord(enText, 'en-US');
+                }
                 return;
             }
 
@@ -2716,7 +2861,108 @@ window.clearSelectedRowsResults = function() {
     }
 };
 
-// Global Keyboard Handler for Undo/Redo & Row Selection Delete / Escape
+// Swap words direction (Anh <-> Việt) for specified row indices
+window.swapStudyWordsForIndices = function(indices, skipPushUndo = false) {
+    if (!indices || indices.length === 0) return;
+    const indexArray = Array.isArray(indices) ? indices : Array.from(indices);
+    if (indexArray.length === 0) return;
+
+    const set = getCurrentSet();
+    if (!set || !set.words) return;
+
+    try {
+        const savedAnswers = loadStudyAnswers(currentSetIndex);
+        const savedResults = loadStudyResults(currentSetIndex);
+
+        const itemsToRecord = [];
+
+        indexArray.forEach(wordIndex => {
+            const word = set.words[wordIndex];
+            if (!word) return;
+
+            const prevEng = word.eng;
+            const prevVie = word.vie;
+            const prevAns = savedAnswers[wordIndex] || '';
+            const prevRes = savedResults[wordIndex] || null;
+
+            itemsToRecord.push({
+                wordIndex: wordIndex,
+                prevEng: prevEng,
+                prevVie: prevVie,
+                prevAns: prevAns,
+                prevRes: prevRes,
+                isVirtual: !!set.isVirtualStarredSet,
+                originalSetIndex: word._originalSetIndex,
+                originalWordIndex: word._originalWordIndex
+            });
+
+            // Swap word properties
+            word.eng = prevVie;
+            word.vie = prevEng;
+
+            // If virtual set, update underlying original set
+            if (set.isVirtualStarredSet && typeof word._originalSetIndex === 'number') {
+                const origSet = appData[word._originalSetIndex];
+                if (origSet && origSet.words[word._originalWordIndex]) {
+                    origSet.words[word._originalWordIndex].eng = word.eng;
+                    origSet.words[word._originalWordIndex].vie = word.vie;
+                }
+            }
+
+            // Clear previous study answer & result for this row so user can start practicing new direction
+            savedAnswers[wordIndex] = '';
+            savedResults[wordIndex] = null;
+        });
+
+        if (!skipPushUndo && itemsToRecord.length > 0) {
+            const desc = itemsToRecord.length === 1
+                ? `Đổi chiều Anh ⇄ Việt dòng #${itemsToRecord[0].wordIndex + 1}`
+                : `Đổi chiều Anh ⇄ Việt ${itemsToRecord.length} dòng`;
+            pushUndoAction({
+                type: 'SWAP_WORDS',
+                description: desc,
+                data: {
+                    setIndex: currentSetIndex,
+                    items: itemsToRecord
+                }
+            });
+        }
+
+        saveAppData();
+        saveStudyAnswers(currentSetIndex, savedAnswers);
+        saveStudyResults(currentSetIndex, savedResults);
+
+        renderStudyTable();
+        updateStudyStats();
+
+        if (typeof showToast === 'function') {
+            showToast(`🔄 Đã đổi chiều Anh ⇄ Việt cho ${itemsToRecord.length} từ đã chọn.`);
+        }
+    } catch (e) {
+        console.warn('Lỗi khi hoán đổi từ:', e);
+    }
+};
+
+window.swapSelectedRowsWords = function() {
+    if (selectedStudyIndices.size === 0) return;
+    const toSwap = Array.from(selectedStudyIndices);
+    try {
+        swapStudyWordsForIndices(toSwap);
+    } finally {
+        clearRowSelection();
+    }
+};
+
+window.swapAllWordsInCurrentSet = function() {
+    const set = getCurrentSet();
+    if (!set || !set.words || set.words.length === 0) return;
+    if (confirm(`Bạn có chắc muốn đổi chiều Anh ⇄ Việt cho toàn bộ ${set.words.length} thuật ngữ trong học phần này không?`)) {
+        const allIndices = set.words.map((_, i) => i);
+        swapStudyWordsForIndices(allIndices);
+    }
+};
+
+// Global Keyboard Handler for Undo/Redo & Row Selection Delete / Swap / Escape
 document.addEventListener('keydown', (e) => {
     // 0. Level 2 Global Undo (Ctrl + Z) & Redo (Ctrl + Y or Ctrl + Shift + Z)
     const isUndo = (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey;
@@ -2759,7 +3005,26 @@ document.addEventListener('keydown', (e) => {
         }
     }
 
-    // 2. Escape clears row selection
+    // 2. Alt + X shortcut to swap words (or X when rows are selected without typing)
+    const isAltX = (e.altKey && (e.key === 'x' || e.key === 'X'));
+    const isKeyXWhenSelected = (e.key === 'x' || e.key === 'X') && !e.ctrlKey && !e.metaKey && !e.altKey && selectedStudyIndices.size > 0 && (!document.activeElement || (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA'));
+
+    if (isAltX || isKeyXWhenSelected) {
+        if (selectedStudyIndices.size > 0) {
+            e.preventDefault();
+            swapSelectedRowsWords();
+            return;
+        } else if (document.activeElement && document.activeElement.classList.contains('answer-input')) {
+            e.preventDefault();
+            const wIdx = parseInt(document.activeElement.getAttribute('data-index'), 10);
+            if (!isNaN(wIdx)) {
+                swapStudyWordsForIndices([wIdx]);
+            }
+            return;
+        }
+    }
+
+    // 3. Escape clears row selection
     if (e.key === 'Escape' && selectedStudyIndices.size > 0) {
         e.preventDefault();
         clearRowSelection();
@@ -3070,6 +3335,8 @@ function renderWordListTable() {
     const tbody = document.getElementById('wordListBody');
     const query = (document.getElementById('wordSearchInput').value || '').trim().toLowerCase();
     tbody.innerHTML = '';
+
+    updateWordListTableHeaders();
 
     if (!set || set.words.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">Học phần này chưa có từ nào.</td></tr>`;
@@ -4016,11 +4283,17 @@ window.importAllDataJson = function(event) {
 // 8. UTILITIES (TTS, FUZZY MATCH, ESCAPING, SHUFFLE)
 // ==========================================================================
 
-window.speakWord = function(text, lang = 'en-US') {
+window.speakWord = function(text, lang = null) {
+    if (!text) return;
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang;
+        if (lang) {
+            utterance.lang = lang;
+        } else {
+            const viRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+            utterance.lang = viRegex.test(text) ? 'vi-VN' : 'en-US';
+        }
         utterance.rate = 0.9;
         window.speechSynthesis.speak(utterance);
     }
